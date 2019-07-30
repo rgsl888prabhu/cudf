@@ -7,7 +7,6 @@
 
 # Copyright (c) 2018, NVIDIA CORPORATION.
 
-from __future__ import print_function
 import numpy as np
 
 from librmm_cffi import librmm as rmm
@@ -68,6 +67,8 @@ cpdef join(col_lhs, col_rhs, left_on, right_on, how, method):
             result_col_names.append(name)
 
     for name in left_on:
+        # This will ensure that the column name is valid 
+        col_lhs[name]
         left_idx.push_back(list(col_lhs.keys()).index(name))
         if (name in right_on and (left_on.index(name) == right_on.index(name))):
             result_cols.push_back(
@@ -81,14 +82,13 @@ cpdef join(col_lhs, col_rhs, left_on, right_on, how, method):
             )
             result_col_names.append(name)
             left_idx_result.push_back(list(col_lhs.keys()).index(name))
-    print ('left', left_idx)
  
     for name in right_on:
+        # This will ensure that the column name is valid 
+        col_rhs[name]
         right_idx.push_back(list(col_rhs.keys()).index(name))
         if (name in left_on and (left_on.index(name) == right_on.index(name))):
             right_idx_result.push_back(list(col_rhs.keys()).index(name))
-
-    print ('right', right_idx)
 
     for name, col in col_rhs.items():
         check_gdf_compatibility(col)
@@ -111,7 +111,7 @@ cpdef join(col_lhs, col_rhs, left_on, right_on, how, method):
     cdef gdf_size_type col_rhs_len = len(col_rhs)
     cdef int c_num_cols_to_join = len(left_on)
     cdef int c_result_num_cols = result_cols.size()
-    cdef int c_num_join_in_result = left_idx_result.size() 
+    cdef int c_num_join_in_result = left_idx_result.size()
 
     with nogil:
         if how == 'left':

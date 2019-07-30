@@ -293,7 +293,6 @@ gdf_error construct_join_output_df(
     std::vector<gdf_column*> lnonjoincol;
     std::vector<gdf_column*> rnonjoincol;
     std::vector<int> left_j_cols (left_join_cols,  left_join_cols + num_cols_to_join);
-    //std::vector<int> right_j_cols (right_join_cols, right_join_cols + num_cols_to_join);
     std::set<int> l_join_indices, r_join_indices;
     for (int i = 0; i < num_cols_joined_result; ++i) {
         l_join_indices.insert(left_join_result_cols[i]);
@@ -310,18 +309,10 @@ gdf_error construct_join_output_df(
         }
     }
     //TODO : Invalid api
-    std::cout <<"RGSL : Number of cols need to be joined "<<num_cols_to_join<<std::endl;
-    std::cout <<"RGSL : Result Number of cols need to be joined "<<result_num_cols<<std::endl;
-    std::cout <<"RGSL : Number of rightf cols need to be joined "<<num_right_cols<<std::endl;
 
     gdf_size_type join_size = left_indices->size;
     int left_table_end = num_left_cols - num_cols_joined_result;
     int right_table_begin = num_left_cols;
-
-  std::cout <<"RGSL : Number of left cols "<<num_left_cols<<std::endl;
-  std::cout <<"RGSL : Number of lnonjoincol "<<lnonjoincol.size()<<std::endl;
-  std::cout <<"RGSL : Number of rnonjoincol "<<rnonjoincol.size()<<std::endl;
-  std::cout <<"RGSL : Number of columns being joined "<< num_cols_joined_result<<std::endl;
 
     //create left and right output column data buffers
     for (int i = 0; i < left_table_end; ++i) {
@@ -351,8 +342,7 @@ gdf_error construct_join_output_df(
         CUDA_TRY( cudaMemset(result_cols[i]->valid, 0, sizeof(gdf_valid_type)*gdf_valid_allocation_size(join_size)) );
         CHECK_STREAM(0);
     }
-   
-    std::cout <<"RGSL : Memory allocated"<<std::endl;
+
 
     // If the join_type is an outer join, then indices for non-matches will be
     // -1, requiring bounds checking when gathering the result table
@@ -363,17 +353,14 @@ gdf_error construct_join_output_df(
       cudf::table left_source_table(lnonjoincol.data(), lnonjoincol.size());
       cudf::table left_destination_table(result_cols, lnonjoincol.size());
 
-      std::cout <<"RGSL : Before Gather"<<std::endl;
       cudf::detail::gather(&left_source_table,
                            static_cast<index_type const *>(left_indices->data),
                            &left_destination_table, check_bounds);
-      std::cout <<"RGSL : After Gather"<<std::endl;
       CHECK_STREAM(0);
       gdf_error update_err = nvcategory_gather_table(left_source_table,left_destination_table);
       CHECK_STREAM(0);
       GDF_REQUIRE(update_err == GDF_SUCCESS,update_err);
     }
-    std::cout <<"RGSL : Constructed left column"<<std::endl;
 
     // Construct the right columns
     if (0 != rnonjoincol.size()) {
@@ -389,22 +376,19 @@ gdf_error construct_join_output_df(
       GDF_REQUIRE(update_err == GDF_SUCCESS,update_err);
     }
 
-    std::cout <<"RGSL : Constructed right column"<<std::endl;
-    
-    #if 1
     // Construct the joined columns
     if (0 != ljoincol.size() && num_cols_joined_result > 0) {
-     
+
       std::vector <gdf_column *> l_join(num_cols_joined_result);
       std::vector <gdf_column *> r_join(num_cols_joined_result);
       for (int join_ind = 0; join_ind < num_cols_joined_result; ++join_ind)
       {
-          std::vector<int>::iterator itr = std::find(left_j_cols.begin(), left_j_cols.end(), 
-              				    left_join_result_cols[join_ind]);
-           
+          std::vector<int>::iterator itr = std::find(left_j_cols.begin(), left_j_cols.end(),
+               left_join_result_cols[join_ind]);
+
           l_join[join_ind] =
                ljoincol[std::distance(left_j_cols.begin(), itr)];
-          
+
           r_join[join_ind] =
                rjoincol[std::distance(left_j_cols.begin(), itr)];
       }
@@ -432,11 +416,8 @@ gdf_error construct_join_output_df(
       CHECK_STREAM(0);
       GDF_REQUIRE(update_err == GDF_SUCCESS,update_err);
     }
-     #endif
 
-    std::cout<<"Before pop range"<<std::endl;
     POP_RANGE();
-    std::cout<<"After pop range"<<std::endl;
     return GDF_SUCCESS;
 }
 
@@ -635,7 +616,6 @@ gdf_error join_call_compute_df(
 
 
 
-    std::cout <<"RGSL : Freeing columns"<<std::endl;
 
     //freeing up the temp column used to synch categories between columns
     for(unsigned int column_to_free = 0; column_to_free < temp_columns_to_free.size(); column_to_free++){
@@ -646,7 +626,6 @@ gdf_error join_call_compute_df(
     CHECK_STREAM(0);
 
 
-    std::cout <<"RGSL : Returning from col join_call_compute_df"<<std::endl;
     return df_err;
 }
 
