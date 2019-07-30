@@ -430,7 +430,7 @@ struct JoinTest : public GdfTest
                                        num_columns,
                                        0, nullptr,
                                        &left_result, &right_result,
-                                       &ctxt);
+                                       &ctxt, range.data(), range.data(), range.size());
           break;
         }
       case join_op::INNER:
@@ -441,7 +441,7 @@ struct JoinTest : public GdfTest
                                          num_columns,
                                          0, nullptr,
                                          &left_result, &right_result,
-                                         &ctxt);
+                                         &ctxt, range.data(), range.data(), range.size());
           break;
         }
       case join_op::FULL:
@@ -452,7 +452,7 @@ struct JoinTest : public GdfTest
                                          num_columns,
                                          0, nullptr,
                                          &left_result, &right_result,
-                                         &ctxt);
+                                         &ctxt, range.data(), range.data(), range.size());
           break;
         }
       default:

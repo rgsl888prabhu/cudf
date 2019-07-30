@@ -549,7 +549,8 @@ struct NVCategoryJoinTest : public GdfTest
                                        left_join_idx.size(),
                                        result_num_cols, result_columns,
                                        &left_result, &right_result,
-                                       &ctxt);
+                                       &ctxt, left_join_idx.data(), right_join_idx.data(),
+                                       left_join_idx.size());
           break;
         }
       case join_op::INNER:
@@ -560,7 +561,8 @@ struct NVCategoryJoinTest : public GdfTest
                                          left_join_idx.size(),
                                          result_num_cols, result_columns,
                                          &left_result, &right_result,
-                                         &ctxt);
+                                         &ctxt, left_join_idx.data(), right_join_idx.data(),
+                                         left_join_idx.size());
           break;
         }
       case join_op::FULL:
@@ -571,7 +573,8 @@ struct NVCategoryJoinTest : public GdfTest
                                          left_join_idx.size(),
                                          result_num_cols, result_columns,
                                          &left_result, &right_result,
-                                         &ctxt);
+                                         &ctxt, left_join_idx.data(), right_join_idx.data(),
+                                         left_join_idx.size());
           break;
         }
       default:

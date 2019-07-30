@@ -7,6 +7,7 @@
 
 # Copyright (c) 2018, NVIDIA CORPORATION.
 
+from __future__ import print_function
 import numpy as np
 
 from librmm_cffi import librmm as rmm
@@ -39,6 +40,8 @@ cpdef join(col_lhs, col_rhs, left_on, right_on, how, method):
 
     cdef vector[int] left_idx
     cdef vector[int] right_idx
+    cdef vector[int] left_idx_result
+    cdef vector[int] right_idx_result
 
     assert(len(left_on) == len(right_on))
 
@@ -52,7 +55,7 @@ cpdef join(col_lhs, col_rhs, left_on, right_on, how, method):
         check_gdf_compatibility(col)
         list_lhs.push_back(column_view_from_column(col._column))
 
-        if name not in left_on:
+        if not (name in left_on and name in right_on and (left_on.index(name) == right_on.index(name))):
             result_cols.push_back(
                 column_view_from_NDArrays(
                     0,
@@ -65,26 +68,33 @@ cpdef join(col_lhs, col_rhs, left_on, right_on, how, method):
             result_col_names.append(name)
 
     for name in left_on:
-        result_cols.push_back(
-            column_view_from_NDArrays(
-                0,
-                None,
-                mask=None,
-                dtype=col_lhs[name]._column.dtype,
-                null_count=0
-            )
-        )
-        result_col_names.append(name)
         left_idx.push_back(list(col_lhs.keys()).index(name))
-
+        if (name in right_on and (left_on.index(name) == right_on.index(name))):
+            result_cols.push_back(
+                column_view_from_NDArrays(
+                    0,
+                    None,
+                    mask=None,
+                    dtype=col_lhs[name]._column.dtype,
+                    null_count=0
+                )
+            )
+            result_col_names.append(name)
+            left_idx_result.push_back(list(col_lhs.keys()).index(name))
+    print ('left', left_idx)
+ 
     for name in right_on:
         right_idx.push_back(list(col_rhs.keys()).index(name))
+        if (name in left_on and (left_on.index(name) == right_on.index(name))):
+            right_idx_result.push_back(list(col_rhs.keys()).index(name))
+
+    print ('right', right_idx)
 
     for name, col in col_rhs.items():
         check_gdf_compatibility(col)
         list_rhs.push_back(column_view_from_column(col._column))
 
-        if name not in right_on:
+        if not (name in right_on and name in left_on and (left_on.index(name) == right_on.index(name))):
             result_cols.push_back(
                 column_view_from_NDArrays(
                     0,
@@ -101,6 +111,7 @@ cpdef join(col_lhs, col_rhs, left_on, right_on, how, method):
     cdef gdf_size_type col_rhs_len = len(col_rhs)
     cdef int c_num_cols_to_join = len(left_on)
     cdef int c_result_num_cols = result_cols.size()
+    cdef int c_num_join_in_result = left_idx_result.size() 
 
     with nogil:
         if how == 'left':
@@ -116,7 +127,10 @@ cpdef join(col_lhs, col_rhs, left_on, right_on, how, method):
                 result_cols.data(),
                 <gdf_column*> NULL,
                 <gdf_column*> NULL,
-                context
+                context,
+                left_idx_result.data(),
+                right_idx_result.data(),
+                c_num_join_in_result
             )
 
         elif how == 'inner':
@@ -132,7 +146,10 @@ cpdef join(col_lhs, col_rhs, left_on, right_on, how, method):
                 result_cols.data(),
                 <gdf_column*> NULL,
                 <gdf_column*> NULL,
-                context
+                context,
+                left_idx_result.data(),
+                right_idx_result.data(),
+                c_num_join_in_result
             )
 
         elif how == 'outer':
@@ -148,7 +165,10 @@ cpdef join(col_lhs, col_rhs, left_on, right_on, how, method):
                 result_cols.data(),
                 <gdf_column*> NULL,
                 <gdf_column*> NULL,
-                context
+                context,
+                left_idx_result.data(),
+                right_idx_result.data(),
+                c_num_join_in_result
             )
 
     check_gdf_error(result)

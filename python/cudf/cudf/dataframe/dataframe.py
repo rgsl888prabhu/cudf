@@ -1960,6 +1960,7 @@ class DataFrame(object):
         # whereas Pandas keeps the "right_on" columns if its name differ
         # from the one in the "left_on". Thus, here we duplicate the column if
         # the name differ.
+        """
         for left, right in zip(left_on, right_on):
             if left != right:
                 for col, valid, name in gdf_result:
@@ -1968,6 +1969,7 @@ class DataFrame(object):
                         break
                 else:
                     assert False
+        """
 
         # Let's sort the columns of the GDF result. NB: Pandas doc says
         # that it sorts when how='outer' but this is NOT the case.

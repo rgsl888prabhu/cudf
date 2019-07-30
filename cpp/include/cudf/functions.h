@@ -348,7 +348,10 @@ gdf_error gdf_inner_join(
                          gdf_column **result_cols,
                          gdf_column * left_indices,
                          gdf_column * right_indices,
-                         gdf_context *join_context);
+                         gdf_context *join_context,
+                         int left_join_result_cols[],
+                         int right_join_result_cols[],
+                         int num_cols_joined_result);
 
 /** 
  * @brief  Performs a left join (also known as left outer join) on the
@@ -389,7 +392,10 @@ gdf_error gdf_left_join(
                          gdf_column **result_cols,
                          gdf_column * left_indices,
                          gdf_column * right_indices,
-                         gdf_context *join_context);
+                         gdf_context *join_context,
+                         int left_join_result_cols[],
+                         int right_join_result_cols[],
+                         int num_cols_joined_result);
 
 /** 
  * @brief  Performs a full join (also known as full outer join) on the
@@ -430,7 +436,10 @@ gdf_error gdf_full_join(
                          gdf_column **result_cols,
                          gdf_column * left_indices,
                          gdf_column * right_indices,
-                         gdf_context *join_context);
+                         gdf_context *join_context,
+                         int left_join_result_cols[],
+                         int right_join_result_cols[],
+                         int num_cols_joined_result);
 
 /* partioning */
 

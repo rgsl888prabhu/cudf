@@ -22,7 +22,10 @@ cdef extern from "cudf.h" nogil:
         gdf_column **result_cols,
         gdf_column * left_indices,
         gdf_column * right_indices,
-        gdf_context *join_context
+        gdf_context *join_context,
+        int left_col_res_join[],
+        int right_col_res_join[],
+        int num_cols_res_join
     ) except +
 
     cdef gdf_error gdf_left_join(
@@ -37,7 +40,10 @@ cdef extern from "cudf.h" nogil:
         gdf_column **result_cols,
         gdf_column * left_indices,
         gdf_column * right_indices,
-        gdf_context *join_context
+        gdf_context *join_context,
+        int left_col_res_join[],
+        int right_col_res_join[],
+        int num_cols_res_join
     ) except +
 
     cdef gdf_error gdf_full_join(
@@ -52,5 +58,8 @@ cdef extern from "cudf.h" nogil:
         gdf_column **result_cols,
         gdf_column * left_indices,
         gdf_column * right_indices,
-        gdf_context *join_context
+        gdf_context *join_context,
+        int left_col_res_join[],
+        int right_col_res_join[],
+        int num_cols_res_join
     ) except +
