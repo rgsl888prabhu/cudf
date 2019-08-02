@@ -416,43 +416,38 @@ struct JoinTest : public GdfTest
 
     gdf_error result_error{GDF_SUCCESS};
 
-    gdf_column ** left_gdf_columns = gdf_raw_left_columns.data();
-    gdf_column ** right_gdf_columns = gdf_raw_right_columns.data();
+    cudf::table left_gdf_columns = gdf_raw_left_columns.data();
+    cudf::table right_gdf_columns = gdf_raw_right_columns.data();
+    std::pair <cudf::table, cudf::table> result;
     std::vector<int> range;
     for (int i = 0; i < num_columns; ++i) {range.push_back(i);}
     switch(op)
     {
       case join_op::LEFT:
         {
-          result_error = gdf_left_join(
-                                       left_gdf_columns, num_columns, range.data(),
-                                       right_gdf_columns, num_columns, range.data(),
-                                       num_columns,
-                                       0, nullptr,
+          result = gdf_left_join(
+                                       left_gdf_columns, range,
+                                       right_gdf_columns, range,
                                        &left_result, &right_result,
-                                       &ctxt, range.data(), range.data(), range.size());
+                                       &ctxt, range, range);
           break;
         }
       case join_op::INNER:
         {
-          result_error =  gdf_inner_join(
-                                         left_gdf_columns, num_columns, range.data(),
-                                         right_gdf_columns, num_columns, range.data(),
-                                         num_columns,
-                                         0, nullptr,
-                                         &left_result, &right_result,
-                                         &ctxt, range.data(), range.data(), range.size());
+          result =  gdf_inner_join(
+                                       left_gdf_columns, range,
+                                       right_gdf_columns, range,
+                                       &left_result, &right_result,
+                                       &ctxt, range, range);
           break;
         }
       case join_op::FULL:
         {
-          result_error =  gdf_full_join(
-                                         left_gdf_columns, num_columns, range.data(),
-                                         right_gdf_columns, num_columns, range.data(),
-                                         num_columns,
-                                         0, nullptr,
-                                         &left_result, &right_result,
-                                         &ctxt, range.data(), range.data(), range.size());
+          result =  gdf_full_join(
+                                       left_gdf_columns, range,
+                                       right_gdf_columns, range,
+                                       &left_result, &right_result,
+                                       &ctxt, range, range);
           break;
         }
       default:
@@ -460,15 +455,6 @@ struct JoinTest : public GdfTest
         EXPECT_TRUE(false);
     }
    
-    EXPECT_EQ(expected_result, result_error) << "The gdf join function did not complete successfully";
-
-    // If the expected result was not GDF_SUCCESS, then this test was testing for a
-    // specific error condition, in which case we return imediately and do not do
-    // any further work on the output
-    if(GDF_SUCCESS != expected_result){
-      return std::vector<result_type>();
-    }
-
     EXPECT_EQ(left_result.size, right_result.size) << "Join output size mismatch";
     // The output is an array of size `n` where the first n/2 elements are the
     // left_indices and the last n/2 elements are the right indices

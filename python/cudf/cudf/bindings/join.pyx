@@ -44,137 +44,86 @@ cpdef join(col_lhs, col_rhs, left_on, right_on, how, method):
 
     assert(len(left_on) == len(right_on))
 
+    cdef cudf_table *list_lhs = table_from_columns (col_lhs)
+    cdef cudf_table *list_rhs = table_from_columns (col_rhs)
+
     cdef vector[gdf_column*] list_lhs
     cdef vector[gdf_column*] list_rhs
-    cdef vector[gdf_column*] result_cols
 
     result_col_names = []  # Preserve the order of the column names
 
     for name, col in col_lhs.items():
         check_gdf_compatibility(col)
-        list_lhs.push_back(column_view_from_column(col._column))
-
-        if not (name in left_on and name in right_on and (left_on.index(name) == right_on.index(name))):
-            result_cols.push_back(
-                column_view_from_NDArrays(
-                    0,
-                    None,
-                    mask=None,
-                    dtype=col._column.dtype,
-                    null_count=0
-                )
-            )
-            result_col_names.append(name)
+        result_col_names.append(name)
 
     for name in left_on:
         # This will ensure that the column name is valid 
         col_lhs[name]
-        left_idx.push_back(list(col_lhs.keys()).index(name))
         if (name in right_on and (left_on.index(name) == right_on.index(name))):
-            result_cols.push_back(
-                column_view_from_NDArrays(
-                    0,
-                    None,
-                    mask=None,
-                    dtype=col_lhs[name]._column.dtype,
-                    null_count=0
-                )
-            )
-            result_col_names.append(name)
             left_idx_result.push_back(list(col_lhs.keys()).index(name))
  
     for name in right_on:
         # This will ensure that the column name is valid 
         col_rhs[name]
-        right_idx.push_back(list(col_rhs.keys()).index(name))
         if (name in left_on and (left_on.index(name) == right_on.index(name))):
             right_idx_result.push_back(list(col_rhs.keys()).index(name))
 
     for name, col in col_rhs.items():
         check_gdf_compatibility(col)
-        list_rhs.push_back(column_view_from_column(col._column))
+        result_col_names.append(name)
 
-        if not (name in right_on and name in left_on and (left_on.index(name) == right_on.index(name))):
-            result_cols.push_back(
-                column_view_from_NDArrays(
-                    0,
-                    None,
-                    mask=None,
-                    dtype=col._column.dtype,
-                    null_count=0
-                )
-            )
-            result_col_names.append(name)
-
-    cdef gdf_error result = GDF_CUDA_ERROR
-    cdef gdf_size_type col_lhs_len = len(col_lhs)
-    cdef gdf_size_type col_rhs_len = len(col_rhs)
-    cdef int c_num_cols_to_join = len(left_on)
-    cdef int c_result_num_cols = result_cols.size()
-    cdef int c_num_join_in_result = left_idx_result.size()
+    cdef pair [cudf_table, cudf_table] result;
 
     with nogil:
         if how == 'left':
             result = gdf_left_join(
-                list_lhs.data(),
-                col_lhs_len,
-                left_idx.data(),
-                list_rhs.data(),
-                col_rhs_len,
-                right_idx.data(),
-                c_num_cols_to_join,
-                c_result_num_cols,
-                result_cols.data(),
+                list_lhs[0],
+                left_idx,
+                list_rhs[0],
+                right_idx,
                 <gdf_column*> NULL,
                 <gdf_column*> NULL,
                 context,
-                left_idx_result.data(),
-                right_idx_result.data(),
-                c_num_join_in_result
+                left_idx_resul,
+                right_idx_result
             )
 
         elif how == 'inner':
             result = gdf_inner_join(
-                list_lhs.data(),
-                col_lhs_len,
-                left_idx.data(),
-                list_rhs.data(),
-                col_rhs_len,
-                right_idx.data(),
-                c_num_cols_to_join,
-                c_result_num_cols,
-                result_cols.data(),
+                list_lhs[0],
+                left_idx,
+                list_rhs[0],
+                right_idx,
                 <gdf_column*> NULL,
                 <gdf_column*> NULL,
                 context,
-                left_idx_result.data(),
-                right_idx_result.data(),
-                c_num_join_in_result
+                left_idx_resul,
+                right_idx_result
             )
 
         elif how == 'outer':
             result = gdf_full_join(
-                list_lhs.data(),
-                col_lhs_len,
-                left_idx.data(),
-                list_rhs.data(),
-                col_rhs_len,
-                right_idx.data(),
-                c_num_cols_to_join,
-                c_result_num_cols,
-                result_cols.data(),
+                list_lhs[0],
+                left_idx,
+                list_rhs[0],
+                right_idx,
                 <gdf_column*> NULL,
                 <gdf_column*> NULL,
                 context,
-                left_idx_result.data(),
-                right_idx_result.data(),
-                c_num_join_in_result
+                left_idx_resul,
+                right_idx_result
             )
-
-    check_gdf_error(result)
 
     res = []
     valids = []
+    cdef vector[gdf_column*] result_cols;
+
+    for idx in range (result.first.num_columns()):
+        result_col.push_back(result.first.get_column(idx))
+    
+    for idx in range (result.second.num_columns()):
+        result_col.push_back(result.second.get_column(idx))
+    
 
     cdef uintptr_t data_ptr
     cdef uintptr_t valid_ptr
