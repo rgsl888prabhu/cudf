@@ -1929,7 +1929,7 @@ class DataFrame(object):
 
         # Fix column names by appending `suffixes`
         for name in same_named_columns:
-            if name not in left_on and name not in right_on:
+            if not (name in left_on and name in right_on and (left_on.index(name) == right_on.index(name))):
                 if not (lsuffix or rsuffix):
                     raise ValueError(
                         "there are overlapping columns but "
@@ -1938,6 +1938,10 @@ class DataFrame(object):
                 else:
                     lhs.rename({name: "%s%s" % (name, lsuffix)}, inplace=True)
                     rhs.rename({name: "%s%s" % (name, rsuffix)}, inplace=True)
+                    if name in left_on:
+                        left_on[left_on.index(name)] = "%s%s" % (name, lsuffix)
+                    if name in right_on:
+                        right_on[right_on.index(name)] = "%s%s" % (name, lsuffix)
 
         # We save the original categories for the reconstruction of the
         # final data frame
@@ -1950,6 +1954,7 @@ class DataFrame(object):
 
         # Save the order of the original column names for preservation later
         org_names = list(itertools.chain(lhs._cols.keys(), rhs._cols.keys()))
+        print ("RGSL: Org names ", org_names)
 
         # Compute merge
         gdf_result = cpp_join.join(
@@ -2004,6 +2009,7 @@ class DataFrame(object):
                 + sorted(right_of_on, key=lambda x: str(x[2]))
             )
         else:
+            print ("In else")
             for org_name in org_names:
                 for i in range(len(gdf_result)):
                     if gdf_result[i][2] == org_name:
@@ -2012,6 +2018,7 @@ class DataFrame(object):
             assert len(gdf_result) == 0
 
         # Build a new data frame based on the merged columns from GDF
+
         df = DataFrame()
         for col, valid, name in result:
             if isinstance(col, nvstrings.nvstrings):
@@ -2040,8 +2047,10 @@ class DataFrame(object):
 
         # Remove all of the "index as column" columns
         if merge_index_name in df.columns:
+            print ("dropping column")
             df._drop_column(merge_index_name)
         if result_index_name in df.columns:
+            print ("dropping column")
             df._drop_column(result_index_name)
 
         nvtx_range_pop()

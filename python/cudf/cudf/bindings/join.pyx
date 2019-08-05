@@ -7,6 +7,7 @@
 
 # Copyright (c) 2018, NVIDIA CORPORATION.
 
+from __future__ import print_function
 import numpy as np
 
 from librmm_cffi import librmm as rmm
@@ -16,6 +17,8 @@ import nvstrings
 from cudf.bindings.cudf_cpp cimport *
 from cudf.bindings.cudf_cpp import *
 from cudf.bindings.join cimport *
+from cudf.bindings.utils cimport *
+from libcpp.utility cimport pair
 from libcpp.vector cimport vector
 from libc.stdint cimport uintptr_t
 from libc.stdlib cimport calloc, malloc, free
@@ -44,11 +47,9 @@ cpdef join(col_lhs, col_rhs, left_on, right_on, how, method):
 
     assert(len(left_on) == len(right_on))
 
-    cdef cudf_table *list_lhs = table_from_columns (col_lhs)
-    cdef cudf_table *list_rhs = table_from_columns (col_rhs)
+    cdef cudf_table *list_lhs = table_from_dataframe (col_lhs)
+    cdef cudf_table *list_rhs = table_from_dataframe (col_rhs)
 
-    cdef vector[gdf_column*] list_lhs
-    cdef vector[gdf_column*] list_rhs
 
     result_col_names = []  # Preserve the order of the column names
 
@@ -59,18 +60,21 @@ cpdef join(col_lhs, col_rhs, left_on, right_on, how, method):
     for name in left_on:
         # This will ensure that the column name is valid 
         col_lhs[name]
+        left_idx.push_back(list(col_lhs.keys()).index(name))
         if (name in right_on and (left_on.index(name) == right_on.index(name))):
             left_idx_result.push_back(list(col_lhs.keys()).index(name))
  
     for name in right_on:
-        # This will ensure that the column name is valid 
+        # This will ensure that the column name is valid
         col_rhs[name]
+        right_idx.push_back(list(col_rhs.keys()).index(name))
         if (name in left_on and (left_on.index(name) == right_on.index(name))):
             right_idx_result.push_back(list(col_rhs.keys()).index(name))
 
     for name, col in col_rhs.items():
         check_gdf_compatibility(col)
-        result_col_names.append(name)
+        if not ((name in left_on) and (name in right_on) and (left_on.index(name) == right_on.index(name))):
+            result_col_names.append(name)
 
     cdef pair [cudf_table, cudf_table] result;
 
@@ -84,7 +88,7 @@ cpdef join(col_lhs, col_rhs, left_on, right_on, how, method):
                 <gdf_column*> NULL,
                 <gdf_column*> NULL,
                 context,
-                left_idx_resul,
+                left_idx_result,
                 right_idx_result
             )
 
@@ -97,7 +101,7 @@ cpdef join(col_lhs, col_rhs, left_on, right_on, how, method):
                 <gdf_column*> NULL,
                 <gdf_column*> NULL,
                 context,
-                left_idx_resul,
+                left_idx_result,
                 right_idx_result
             )
 
@@ -110,7 +114,7 @@ cpdef join(col_lhs, col_rhs, left_on, right_on, how, method):
                 <gdf_column*> NULL,
                 <gdf_column*> NULL,
                 context,
-                left_idx_resul,
+                left_idx_result,
                 right_idx_result
             )
 
@@ -119,14 +123,15 @@ cpdef join(col_lhs, col_rhs, left_on, right_on, how, method):
     cdef vector[gdf_column*] result_cols;
 
     for idx in range (result.first.num_columns()):
-        result_col.push_back(result.first.get_column(idx))
+        result_cols.push_back(result.first.get_column(idx))
     
     for idx in range (result.second.num_columns()):
-        result_col.push_back(result.second.get_column(idx))
+        result_cols.push_back(result.second.get_column(idx))
     
 
     cdef uintptr_t data_ptr
     cdef uintptr_t valid_ptr
+
 
     for idx in range(result_cols.size()):
         col_dtype = gdf_to_np_dtype(result_cols[idx].dtype)
@@ -198,11 +203,8 @@ cpdef join(col_lhs, col_rhs, left_on, right_on, how, method):
                 valids.append(None)
 
     free(context)
-    for c_col in list_lhs:
-        free(c_col)
-    for c_col in list_rhs:
-        free(c_col)
-    for c_col in result_cols:
-        free(c_col)
+
+    del list_lhs  
+    del list_rhs
 
     return list(zip(res, valids, result_col_names))
