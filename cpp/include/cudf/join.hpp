@@ -14,12 +14,9 @@
  * limitations under the License.
  */
 
-#ifndef JOIN_HPP
-#define JOIN_HPP
+#pragma once
 
-name_space cudf
-
-{
+namespace cudf {
 // joins
 
 /** 
@@ -43,16 +40,16 @@ name_space cudf
  * @returns If Success, pair of left and right table which are merged 
  * 
  */
-std::pair<table, table> gdf_inner_join(
-                         cudf::table const& left_cols,
-                         std::vector <index_type> left_join_cols,
-                         cudf::table const& right_cols,
-                         std::vector <index_type> right_join_cols,
+std::pair<cudf::table, cudf::table> gdf_inner_join(
+                         cudf::table & left_cols,
+                         std::vector <int> left_join_cols,
+                         cudf::table & right_cols,
+                         std::vector <int> right_join_cols,
                          gdf_column * left_indices,
                          gdf_column * right_indices,
                          gdf_context *join_context,
-                         std::vector <index_type> left_join_result_cols,
-                         std::vector <index_type> right_join_result_cols)
+                         std::vector <int> left_join_result_cols,
+                         std::vector <int> right_join_result_cols);
 /** 
  * @brief  Performs a left join (also known as left outer join) on the
  * specified columns of two dataframes (left, right)
@@ -73,16 +70,16 @@ std::pair<table, table> gdf_inner_join(
  * 
  * @returns If Success, pair of left and right table which are merged * 
  */
-std::pair<table, table> gdf_left_join(
-                         cudf::table const& left_cols,
-                         std::vector <index_type> left_join_cols,
-                         cudf::table const& right_cols,
-                         std::vector <index_type> right_join_cols,
+std::pair<cudf::table, cudf::table> gdf_left_join(
+                         cudf::table & left_cols,
+                         std::vector <int> left_join_cols,
+                         cudf::table & right_cols,
+                         std::vector <int> right_join_cols,
                          gdf_column * left_indices,
                          gdf_column * right_indices,
                          gdf_context *join_context,
-                         std::vector <index_type> left_join_result_cols,
-                         std::vector <index_type> right_join_result_cols)
+                         std::vector <int> left_join_result_cols,
+                         std::vector <int> right_join_result_cols);
 
 /** 
  * @brief  Performs a full join (also known as full outer join) on the
@@ -104,15 +101,14 @@ std::pair<table, table> gdf_left_join(
  * 
  * @returns If Success, pair of left and right table which are merged * 
  */
-std::pair<table, table> gdf_full_join(
-                         cudf::table const& left_cols,
-                         std::vector <index_type> left_join_cols,
-                         cudf::table const& right_cols,
-                         std::vector <index_type> right_join_cols,
+std::pair<cudf::table, cudf::table> gdf_full_join(
+                         cudf::table & left_cols,
+                         std::vector <int> left_join_cols,
+                         cudf::table & right_cols,
+                         std::vector <int> right_join_cols,
                          gdf_column * left_indices,
                          gdf_column * right_indices,
                          gdf_context *join_context,
-                         std::vector <index_type> left_join_result_cols,
-                         std::vector <index_type> right_join_result_cols)
-}
-#endif // JOIN_HPP
+                         std::vector <int> left_join_result_cols,
+                         std::vector <int> right_join_result_cols);
+} //namespace cudf

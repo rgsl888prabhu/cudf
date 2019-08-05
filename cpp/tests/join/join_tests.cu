@@ -26,6 +26,7 @@
 #include <utilities/bit_util.cuh>
 
 #include <cudf/cudf.h>
+#include <cudf/join.hpp>
 
 #include <rmm/rmm.h>
 
@@ -414,10 +415,8 @@ struct JoinTest : public GdfTest
     left_result.size = 0;
     right_result.size = 0;
 
-    gdf_error result_error{GDF_SUCCESS};
-
-    cudf::table left_gdf_columns = gdf_raw_left_columns.data();
-    cudf::table right_gdf_columns = gdf_raw_right_columns.data();
+    cudf::table left_gdf_columns(gdf_raw_left_columns);
+    cudf::table right_gdf_columns(gdf_raw_right_columns);
     std::pair <cudf::table, cudf::table> result;
     std::vector<int> range;
     for (int i = 0; i < num_columns; ++i) {range.push_back(i);}
@@ -425,7 +424,7 @@ struct JoinTest : public GdfTest
     {
       case join_op::LEFT:
         {
-          result = gdf_left_join(
+          result = cudf::gdf_left_join(
                                        left_gdf_columns, range,
                                        right_gdf_columns, range,
                                        &left_result, &right_result,
@@ -434,7 +433,7 @@ struct JoinTest : public GdfTest
         }
       case join_op::INNER:
         {
-          result =  gdf_inner_join(
+          result =  cudf::gdf_inner_join(
                                        left_gdf_columns, range,
                                        right_gdf_columns, range,
                                        &left_result, &right_result,
@@ -443,7 +442,7 @@ struct JoinTest : public GdfTest
         }
       case join_op::FULL:
         {
-          result =  gdf_full_join(
+          result =  cudf::gdf_full_join(
                                        left_gdf_columns, range,
                                        right_gdf_columns, range,
                                        &left_result, &right_result,

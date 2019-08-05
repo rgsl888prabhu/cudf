@@ -26,6 +26,7 @@
 
 #include <cudf/functions.h>
 #include <cudf/types.h>
+#include <cudf/join.hpp>
 #include <iostream>
 #include <random>
 
@@ -542,7 +543,7 @@ struct NVCategoryJoinTest : public GdfTest
     {
       case join_op::LEFT:
         {
-          result = gdf_left_join(
+          result = cudf::gdf_left_join(
                                        left_gdf_columns, left_join_idx,
                                        right_gdf_columns, right_join_idx,
                                        &left_result, &right_result,
@@ -551,7 +552,7 @@ struct NVCategoryJoinTest : public GdfTest
         }
       case join_op::INNER:
         {
-          result  =  gdf_inner_join(
+          result  =  cudf::gdf_inner_join(
                                        left_gdf_columns, left_join_idx,
                                        right_gdf_columns, right_join_idx,
                                        &left_result, &right_result,
@@ -560,7 +561,7 @@ struct NVCategoryJoinTest : public GdfTest
         }
       case join_op::FULL:
         {
-          result =  gdf_full_join(
+          result =  cudf::gdf_full_join(
                                        left_gdf_columns, left_join_idx,
                                        right_gdf_columns, right_join_idx,
                                        &left_result, &right_result,
