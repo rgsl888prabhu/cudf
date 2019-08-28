@@ -12,6 +12,7 @@ from cudf.bindings.cudf_cpp import *
 from cudf.bindings.search cimport *
 from cudf.bindings.utils cimport *
 from cudf.bindings.utils import *
+from cudf.dataframe import columnops
 from libcpp.vector cimport vector
 
 
@@ -47,3 +48,26 @@ def search_sorted(column, values, side):
     free_table(c_values)
 
     return gdf_column_to_column(&c_out_col)
+
+def contains_item (column, item):
+    """Check whether column contains the value
+
+    Parameters
+    ----------
+    column : Column
+        Column to search in
+    item :
+        value to be searched
+    """
+    if (len(column) == 0 or value == None):
+        return False;
+
+    cdef cudf_table *c_t = table_from_columns([column])
+    cdef cudf_table *c_v = table_from_columns([columnops.as_column([item])])
+
+    cdef bool result = contains(c_t[0], c_v[0])
+
+    return result
+
+    
+

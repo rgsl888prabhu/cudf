@@ -57,16 +57,8 @@ class NumericalColumn(columnops.TypedColumnBase):
                 return False
         except Exception:
             return False
-        # Issue with cudautils with bool araray, always returns True.
-        if self.data.mem.dtype == np.bool:
-            return (
-                cudautils.find_first(
-                    self.astype("int_").data.mem, np.int_(item)
-                )
-                != -1
-            )
-        else:
-            return cudautils.find_first(self.data.mem, item) != -1
+
+        return cpp_search.contains_item(self, item)
 
     def replace(self, **kwargs):
         if "data" in kwargs and "dtype" not in kwargs:
