@@ -687,3 +687,158 @@ TEST_F(SearchTest, table__find_last__nulls_as_largest)
                               << "Expected:" << expect.to_str();
 }
 
+TEST_F(SearchTest, contains_true)
+{
+    using element_type = int64_t;
+    bool expect = true;
+
+    auto column = column_wrapper<element_type> {0, 1, 17, 19, 23, 29, 71};
+    auto value = column_wrapper<element_type> {23};
+    bool  result = false;
+
+    EXPECT_NO_THROW(
+    result = cudf::contains(
+        {column.get()},
+        {value.get()});
+    );
+
+    ASSERT_EQ(result, expect);
+}
+
+TEST_F(SearchTest, contains_false)
+{
+    using element_type = int64_t;
+    bool expect = false;
+
+    auto column = column_wrapper<element_type> {0, 1, 17, 19, 23, 29, 71};
+    auto value = column_wrapper<element_type> {24};
+    bool  result = false;
+
+    EXPECT_NO_THROW(
+    result = cudf::contains(
+        {column.get()},
+        {value.get()});
+    );
+
+    ASSERT_EQ(result, expect);
+}
+
+TEST_F(SearchTest, contains_empty_value)
+{
+    using element_type = int64_t;
+    bool expect = false;
+
+    auto column = column_wrapper<element_type> {0, 1, 17, 19, 23, 29, 71};
+    auto value = column_wrapper<element_type> {};
+    bool  result = false;
+
+    EXPECT_NO_THROW(
+    result = cudf::contains(
+        {column.get()},
+        {value.get()});
+    );
+
+    ASSERT_EQ(result, expect);
+}
+
+TEST_F(SearchTest, contains_empty_column)
+{
+    using element_type = int64_t;
+    bool expect = false;
+
+    auto column = column_wrapper<element_type> {};
+    auto value = column_wrapper<element_type> {24};
+    bool  result = false;
+
+    EXPECT_NO_THROW(
+    result = cudf::contains(
+        {column.get()},
+        {value.get()});
+    );
+
+    ASSERT_EQ(result, expect);
+}
+
+TEST_F(SearchTest, contains_float_value)
+{
+    using element_type = int64_t;
+    bool expect = false;
+
+    auto column = column_wrapper<element_type> {0, 1, 17, 19, 23, 29, 71};
+    auto value = column_wrapper<float> {23.0};
+    bool  result = false;
+
+    EXPECT_NO_THROW(
+    result = cudf::contains(
+        {column.get()},
+        {value.get()});
+    );
+
+    ASSERT_EQ(result, expect);
+}
+
+TEST_F(SearchTest, contains_float_column)
+{
+    using element_type = int64_t;
+    bool expect = false;
+
+    auto column = column_wrapper<float> {0.0, 1.0, 17.0, 19.0, 23.0, 29.0, 71.0};
+    auto value = column_wrapper<element_type> {24};
+    bool  result = false;
+
+    EXPECT_NO_THROW(
+    result = cudf::contains(
+        {column.get()},
+        {value.get()});
+    );
+
+    ASSERT_EQ(result, expect);
+}
+
+
+TEST_F(SearchTest, contains_nullable_column_true)
+{
+    using element_type = int64_t;
+    bool result = false;
+    bool expect = true;
+
+    std::vector<element_type>   column_data     { 0, 1, 17, 19, 23, 29, 71};
+    std::vector<gdf_valid_type> column_valids   { 0,  0,  1,  1,  1,  1,  1 };
+    auto value = column_wrapper<element_type> {23};
+
+    auto column = column_wrapper<element_type> ( column_data,
+        [&]( gdf_index_type row ) { return column_valids[row]; }
+    );
+
+    EXPECT_NO_THROW(
+        result = cudf::contains(
+            {column.get()},
+            {value.get()});
+    );
+
+    ASSERT_EQ(result, expect);
+}
+
+TEST_F(SearchTest, contains_nullable_column_false)
+{
+    using element_type = int64_t;
+    bool result = false;
+    bool expect = false;
+
+    std::vector<element_type>   column_data     { 0, 1, 17, 19, 23, 29, 71};
+    std::vector<gdf_valid_type> column_valids   { 0, 0, 1, 1, 0, 1, 1};
+    auto value = column_wrapper<element_type> {23};
+
+    auto column = column_wrapper<element_type> ( column_data,
+        [&]( gdf_index_type row ) { return column_valids[row]; }
+    );
+
+    EXPECT_NO_THROW(
+        result = cudf::contains(
+            {column.get()},
+            {value.get()});
+    );
+
+    ASSERT_EQ(result, expect);
+}
+

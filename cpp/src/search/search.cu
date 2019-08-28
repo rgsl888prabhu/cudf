@@ -129,4 +129,51 @@ gdf_column upper_bound(table const& t,
   return detail::search_ordered(t, values, false, desc_flags, nulls_as_largest);
 }
 
+template <bool nullable = true>
+struct compare_with_value{
+	
+	    compare_with_value(device_table t, device_table val, bool nulls_are_equal = true) 
+	        : compare(t, val, nulls_are_equal) {}
+	
+	    __device__ bool operator()(gdf_index_type i){
+	       return compare(i, 0);
+	    }
+	    row_equality_comparator<nullable> compare;
+};
+
+bool contains(table const& t, table const& value)
+{
+  // No element to compare against
+  if (t.num_rows() == 0 || value.num_rows() == 0) {
+      return false;
+  }
+
+  if (value.num_rows() > 1){
+      CUDF_FAIL("Accepts only one value");
+  }
+  if (t.num_column() > 1){
+      CUDF_FAIL("Accepts only one column");
+  }
+
+  cudaStream_t stream = 0;
+  auto d_t = device_table::create(t, stream);
+  auto d_values = device_table::create(value, stream);
+  auto data_it = thrust::make_counting_iterator(0);
+
+  if (has_nulls(t)) {
+    auto eq_op = compare_with_value<true>(*d_t, *d_values, true);
+
+    return thrust::any_of(rmm::exec_policy(stream)->on(stream),
+                          data_it, data_it + t.num_rows(),
+                          eq_op);
+  }
+  else {
+    auto eq_op = compare_with_value<false>(*d_t, *d_values, true);
+
+    return thrust::any_of(rmm::exec_policy(stream)->on(stream),
+                          data_it, data_it + t.num_rows(),
+                          eq_op);
+  }
+}
+
 } // namespace cudf

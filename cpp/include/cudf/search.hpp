@@ -99,5 +99,22 @@ gdf_column upper_bound(table const& t,
                        std::vector<bool> const& desc_flags,
                        bool nulls_as_largest = true);
 
+/**---------------------------------------------------------------------------*
+ * @brief Find if the value is present in the column
+ * 
+ * Example:
+ * 
+ *  Single Column Tables:
+ *      idx      0   1   2   3   4
+ *   column = { 10, 20, 20, 30, 50 }
+ *   value = { 20 }
+ *   result = true
+ * 
+ * @param t        Table containing single column
+ * @param value    Table containing single column with single value
+ * 
+ * @return bool    if value is found true, else false.
+ *---------------------------------------------------------------------------**/
+bool contains(table const& t, table const& value);
 } // namespace cudf
 
