@@ -59,13 +59,13 @@ def contains_item (column, item):
     item :
         value to be searched
     """
-    if (len(column) == 0 or value == None):
+    if (len(column) == 0 or item == None):
         return False;
 
-    cdef cudf_table *c_t = table_from_columns([column])
-    cdef cudf_table *c_v = table_from_columns([columnops.as_column([item])])
+    cdef gdf_column* col = column_view_from_column(column)
+    cdef gdf_scalar* item_scalar = gdf_scalar_from_scalar(item)
 
-    cdef bool result = contains(c_t[0], c_v[0])
+    cdef bool result = contains(col[0], item_scalar[0])
 
     return result
 

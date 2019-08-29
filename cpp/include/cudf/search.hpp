@@ -115,6 +115,6 @@ gdf_column upper_bound(table const& t,
  * 
  * @return bool    if value is found true, else false.
  *---------------------------------------------------------------------------**/
-bool contains(table const& t, table const& value);
+bool contains(gdf_column const& t, gdf_scalar const& value);
 } // namespace cudf
 

@@ -24,6 +24,6 @@ cdef extern from "cudf/search.hpp" namespace "cudf" nogil:
     ) except +
     
     cdef bool contains(
-        const cudf_table& t,
-        const cudf_table& value
+        const gdf_column& t,
+        const gdf_scalar& value
     ) except +

@@ -19,6 +19,7 @@
 #include <table/legacy/device_table_row_operators.cuh>
 #include <cudf/utilities/legacy/wrapper_types.hpp>
 #include <utilities/column_utils.hpp>
+#include <io/utilities/wrapper_utils.hpp>
 
 #include <cudf/search.hpp>
 #include <cudf/copying.hpp>
@@ -141,37 +142,46 @@ struct compare_with_value{
 	    row_equality_comparator<nullable> compare;
 };
 
-bool contains(table const& t, table const& value)
+struct size_functor{
+  template <typename T>
+  int operator()(){
+    return sizeof(T);
+  }
+};
+
+bool contains(gdf_column const& column, gdf_scalar const& value)
 {
   // No element to compare against
-  if (t.num_rows() == 0 || value.num_rows() == 0) {
+  if (column.size == 0 || value.is_valid == false) {
       return false;
   }
 
-  if (value.num_rows() > 1){
-      CUDF_FAIL("Accepts only one value");
-  }
-  if (t.num_column() > 1){
-      CUDF_FAIL("Accepts only one column");
-  }
-
   cudaStream_t stream = 0;
-  auto d_t = device_table::create(t, stream);
-  auto d_values = device_table::create(value, stream);
+  // Create column with scalar's data
+  gdf_column_wrapper v_col (1, value.dtype, gdf_dtype_extra_info{}, "");
+  RMM_TRY( RMM_ALLOC((void**)&v_col.get()->data, cudf::type_dispatcher(value.dtype, size_functor{}), stream ));
+  cudaMemcpyAsync(v_col.get()->data, (void*) &value.data, cudf::type_dispatcher(value.dtype, size_functor{}), cudaMemcpyHostToDevice, stream);
+
+  gdf_column* col = const_cast<gdf_column *> (&column);
+  gdf_column* val = v_col.get();
+  std::vector <gdf_column*> col_vec = {const_cast<gdf_column*>(&column)};
+  // Creating a single columned device vector
+  auto d_t = device_table::create(1, &col, stream);
+  auto d_values = device_table::create(1, &val, stream);
   auto data_it = thrust::make_counting_iterator(0);
 
-  if (has_nulls(t)) {
+  if (column.valid) {
     auto eq_op = compare_with_value<true>(*d_t, *d_values, true);
 
     return thrust::any_of(rmm::exec_policy(stream)->on(stream),
-                          data_it, data_it + t.num_rows(),
+                          data_it, data_it + column.size,
                           eq_op);
   }
   else {
     auto eq_op = compare_with_value<false>(*d_t, *d_values, true);
 
     return thrust::any_of(rmm::exec_policy(stream)->on(stream),
-                          data_it, data_it + t.num_rows(),
+                          data_it, data_it + column.size,
                           eq_op);
   }
 }
