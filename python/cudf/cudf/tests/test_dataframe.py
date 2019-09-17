@@ -3509,3 +3509,15 @@ def test_tolist_mixed_nulls():
     np.testing.assert_equal(num_data_got, num_data_expect)
     for got, exp in zip(time_data_got, time_data_expect):  # deal with NaT
         assert (got == exp) or (pd.isnull(got) and pd.isnull(exp))
+
+
+def test_numeric_reductions_for_mean():
+    gdf = gd.datasets.timeseries(freq="1H", seed=0)
+    pdf = gdf.to_pandas()
+
+    gdf_mean = gdf.mean()
+    pdf_mean = pdf.mean()
+
+    assert pdf_mean.values[0].round(10) == gdf_mean.values[0].round(10)
+    assert pdf_mean.values[1].round(10) == gdf_mean.values[1].round(10)
+    assert pdf_mean.values[2].round(10) == gdf_mean.values[2].round(10)

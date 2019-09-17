@@ -3564,7 +3564,7 @@ class DataFrame(object):
         -------
         mean : Series or DataFrame (if level specified)
         """
-        return self._apply_support_method("mean", **kwargs)
+        return self._get_numeric_data()._apply_support_method("mean", **kwargs)
 
     def std(self, **kwargs):
         return self._apply_support_method("std", **kwargs)
