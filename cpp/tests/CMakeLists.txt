@@ -353,6 +353,14 @@ set(DLPACK_TEST_SRC
 ConfigureTest(DLPACK_TEST "${DLPACK_TEST_SRC}")
 
 ###################################################################################################
+# - empty and allocate like tests ------------------------------------------------------------------------
+
+set(EMPTY_AND_ALLOCATE_LIKE_TEST_SRC
+    "${CMAKE_CURRENT_SOURCE_DIR}/copying/empty_and_allocate_like_tests.cu")
+
+  ConfigureTest(EMPTY_AND_ALLOCATE_LIKE_TEST "${EMPTY_AND_ALLOCATE_LIKE_TEST_SRC}")
+
+###################################################################################################
 # - copying tests ---------------------------------------------------------------------------------
 
 set(COPYING_TEST_SRC

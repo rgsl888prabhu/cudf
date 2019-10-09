@@ -9,7 +9,7 @@
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either experimentalress or implied.
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
@@ -28,7 +28,7 @@
 
 namespace cudf
 {
-namespace experimental
+namespace exp
 {
 namespace detail
 {
@@ -65,7 +65,7 @@ std::unique_ptr<column> allocate_like(column_view input,
                                       rmm::mr::device_memory_resource *mr,
 				      cudaStream_t stream)
 {
-  mask_state allocate_mask = should_allocate_mask(mask_alloc, input.has_nulls());
+  mask_state allocate_mask = should_allocate_mask(mask_alloc, input.nullable());
 
   std::vector<std::unique_ptr<column>> children {};
   children.reserve(input.num_children());
@@ -91,7 +91,7 @@ std::unique_ptr<column> allocate_like(column_view input,
                                       rmm::mr::device_memory_resource *mr,
 				      cudaStream_t stream)
 {
-  mask_state allocate_mask = should_allocate_mask(mask_alloc, input.has_nulls());
+  mask_state allocate_mask = should_allocate_mask(mask_alloc, input.nullable());
 
   std::vector<std::unique_ptr<column>> children {};
   children.reserve(input.num_children());
@@ -190,5 +190,5 @@ std::unique_ptr<table> allocate_like(table_view input_table,
   return detail::allocate_like(input_table, size, mask_alloc, mr, 0);
 }
 
-} // namespace experimental
+} // namespace exp
 } // namespace cudf
