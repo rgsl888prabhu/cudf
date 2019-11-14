@@ -395,7 +395,8 @@ table copy_if(table const &input, Filter filter, cudaStream_t stream = 0) {
   else if (output_size > 0) {
     // Allocate/initialize output columns
     output = cudf::allocate_like(input, output_size, RETAIN, stream);
-
+    
+#if 0
     // 4. Scatter the output data and valid mask
     for (int col = 0; col < input.num_columns(); col++) {
       gdf_column *out = output.get_column(col);
@@ -411,6 +412,18 @@ table copy_if(table const &input, Filter filter, cudaStream_t stream = 0) {
 	        "could not set nvcategory");
       }
     }
+#endif
+    // Using copy_if to get all the valid indices
+    rmm::device_vector<cudf::size_type> indices (output_size, 0);
+    thrust::copy_if(rmm::exec_policy(stream)->on(stream),
+                    thrust::counting_iterator<cudf::size_type>(0),
+                    thrust::counting_iterator<cudf::size_type>(input.num_rows()),
+                    indices.begin(),
+                    filter);
+
+  // run gather operation to establish new order
+  cudf::gather(&input, indices.data().get(), &output);
+  nvcategory_gather_table(input, output);
   }
   else {
     output = empty_like(input);
