@@ -94,8 +94,7 @@ void gpu_rolling(column_device_view input,
     for (size_type j = start_index; j < end_index; j++) {
       if (!has_nulls || input.is_valid(j)) {
         // Element type and output type are different for COUNT
-        T element = (op == rolling_operator::COUNT) ? T{0} : input.element<T>(j);
-        val = agg_op{}(element, val);
+        val = agg_op{}(output, i, input, j);
         count++;
       }
     }
@@ -112,10 +111,12 @@ void gpu_rolling(column_device_view input,
       warp_valid_count += __popc(result_mask);
     }
 
+#if 0
     // store the output value, one per thread
     if (output_is_valid)
       cudf::detail::store_output_functor<T, op == rolling_operator::MEAN>{}(output.element<T>(i),
                                                                             val, count);
+#endif
 
     // process next element 
     i += stride;
@@ -148,7 +149,8 @@ struct rolling_window_launcher
     cudf::nvtx::range_push("CUDF_ROLLING_WINDOW", cudf::nvtx::color::ORANGE);
 
     // output is always nullable, COUNT always INT32 output
-    std::unique_ptr<column> output = (op == rolling_operator::COUNT) ?
+    bool need_size_type_output = (op == rolling_operator::COUNT) || (std::is_same<T, cudf::string_view>::value);
+    std::unique_ptr<column> output = (need_size_type_output) ?
         make_numeric_column(cudf::data_type{cudf::INT32}, input.size(),
                             cudf::UNINITIALIZED, stream, mr) :
         cudf::experimental::detail::allocate_like(input, input.size(),
@@ -179,7 +181,14 @@ struct rolling_window_launcher
 
     cudf::nvtx::range_pop();
 
-    return output;
+    if (std::is_same<T, cudf::string_view>::value and (op != rolling_operator::COUNT)){
+        auto output_table = cudf::experimental::gather(cudf::table_view{{input}}, output->view(), false, false, false, mr, stream);
+
+        return std::make_unique<cudf::column>(std::move(output_table->get_column(0)));
+    }
+    else {
+        return output;
+    }
   }
 
   /**
@@ -215,28 +224,28 @@ struct rolling_window_launcher
   {
     switch (op) {
     case rolling_operator::SUM:
-      return dispatch_aggregation_type<T, cudf::DeviceSum,
-                                       rolling_operator::SUM>(input, preceding_window_begin,
+      return dispatch_aggregation_type<T, update_target_element<T, SUM>,
+                                       rolling_operator::SUM>(input, cudf::experiemental::detail::preceding_window_begin,
                                                                following_window_begin, min_periods,
                                                                mr, stream);
     case rolling_operator::MIN:
-      return dispatch_aggregation_type<T, cudf::DeviceMin,
-                                       rolling_operator::MIN>(input, preceding_window_begin,
+      return dispatch_aggregation_type<T, update_target_element<T, MIN>,
+                                       rolling_operator::MIN>(input, cudf::experiemental::detail::preceding_window_begin,
                                                               following_window_begin, min_periods,
                                                               mr, stream);
     case rolling_operator::MAX:
-      return dispatch_aggregation_type<T, cudf::DeviceMax,
-                                       rolling_operator::MAX>(input, preceding_window_begin,
+      return dispatch_aggregation_type<T, update_target_element<T, MAX>,
+                                       rolling_operator::MAX>(input, cudf::experiemental::detail::preceding_window_begin,
                                                               following_window_begin, min_periods,
                                                               mr, stream);
     case rolling_operator::COUNT:
       // for count, use size_type rather than the input type (never load the input)
-      return dispatch_aggregation_type<cudf::size_type, cudf::DeviceCount,
+      return dispatch_aggregation_type<cudf::size_type, cudf::experiemental::detail::update_target_element<T, COUNT>,
                                        rolling_operator::COUNT>(input, preceding_window_begin,
                                                                 following_window_begin, min_periods,
                                                                 mr, stream);
     case rolling_operator::MEAN:
-      return dispatch_aggregation_type<T, cudf::DeviceSum,
+      return dispatch_aggregation_type<T, cudf::DeviceSum, cudf::experiemental::detail::update_target_element<T, MEAN>
                                        rolling_operator::MEAN>(input, preceding_window_begin,
                                                                following_window_begin, min_periods,
                                                                mr, stream);
