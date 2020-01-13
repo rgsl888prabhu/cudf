@@ -42,9 +42,18 @@ namespace detail
       cudf::is_timestamp<ColumnType>();
 
     return !std::is_same<ColumnType, cudf::string_view>::value &&
-           (cudf::is_numeric<ColumnType>() ||
+            (cudf::is_numeric<ColumnType>() ||
             comparable_countable_op ||
             timestamp_mean);
+  }
+
+  template <typename ColumnType, cudf::experimental::aggregation::Kind Op>
+  static constexpr bool is_string_supported()
+  {
+      return std::is_same<ColumnType, cudf::string_view>::value and
+             ((cudf::experimental::aggregation::MIN == Op) or 
+              (cudf::experimental::aggregation::MAX == Op) or
+              (cudf::experimental::aggregation::COUNT == Op));
   }
 
   // store functor

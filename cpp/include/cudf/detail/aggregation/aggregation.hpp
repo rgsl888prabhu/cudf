@@ -46,7 +46,7 @@ class aggregation {
     ARGMAX,    ///< Index of max element
     ARGMIN,     ///< Index of min element
     PTX,
-    CUDA};
+    CUDA
   };
 
   aggregation(aggregation::Kind a) : kind{a} {}
@@ -62,6 +62,18 @@ struct quantile_aggregation : aggregation {
       : aggregation{QUANTILE}, _quantiles{q}, _interpolation{i} {}
   std::vector<double> _quantiles;              ///< Desired quantile(s)
   experimental::interpolation _interpolation;  ///< Desired interpolation
+};
+
+/**
+ * @brief Derived class for specifying a udf aggregation
+ */
+struct udf_aggregation : aggregation {
+  udf_aggregation(aggregation::Kind type,
+          std::string const& user_defined_aggregator,
+          data_type output_type): aggregation{type},
+                                  source{user_defined_aggregator}, _output_type{output_type} {}
+  std::string const source;
+  data_type _output_type;
 };
 
 /**
