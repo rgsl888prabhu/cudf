@@ -40,17 +40,58 @@ using cudf::bitmask_type;
 
 class RollingStringTest : public cudf::test::BaseFixture {};
 
-TEST_F (RollingStringTest, NoNullStringMin) {
+TEST_F (RollingStringTest, NoNullStringMinMaxCount) {
     cudf::test::strings_column_wrapper input ({"This", "is", "rolling", "test", "being", "operated", "on", "string", "column"});
     std::vector<size_type> window{2};
-    cudf::test::strings_column_wrapper expected ({"This", "This", "This", "being", "being", "being", "being", "column", "column"});
-    //fixed_width_column_wrapper<size_type> preceding_window_wrapper(window.begin(), window.end());
-    //fixed_width_column_wrapper<size_type> following_window_wrapper(window.begin(), window.end());
+    cudf::test::strings_column_wrapper expected_min ({"This", "This", "This", "being", "being", "being", "being", "column", "column"}, {1, 1, 1, 1, 1, 1, 1, 1, 1});
+    cudf::test::strings_column_wrapper expected_max ({"rolling", "test", "test", "test", "test", "test", "string", "string", "string"}, {1, 1, 1, 1, 1, 1, 1, 1, 1});
+    fixed_width_column_wrapper<size_type> expected_count ({3, 4, 5, 5, 5, 5, 5, 4, 3}, {1, 1, 1, 1, 1, 1, 1, 1, 1});
 
-    auto got  = cudf::experimental::rolling_window(input, window[0], window[0], 1, cudf::experimental::make_min_aggregation());
+    auto got_min  = cudf::experimental::rolling_window(input, window[0], window[0], 1, cudf::experimental::make_min_aggregation());
+    auto got_max  = cudf::experimental::rolling_window(input, window[0], window[0], 1, cudf::experimental::make_max_aggregation());
+    auto got_count  = cudf::experimental::rolling_window(input, window[0], window[0], 1, cudf::experimental::make_count_aggregation());
+
+    cudf::test::expect_columns_equal(expected_min, got_min->view());
+    cudf::test::expect_columns_equal(expected_max, got_max->view());
+    cudf::test::expect_columns_equal(expected_count, got_count->view());
+}
+
+TEST_F (RollingStringTest, NullStringMinMaxCount) {
+    cudf::test::strings_column_wrapper input ({"This", "is", "rolling", "test", "being", "operated", "on", "string", "column"}, 
+                                              {     1,    0,         0,     1,        0,          1,    1,        1,       0});
+    std::vector<size_type> window{2};
+    cudf::test::strings_column_wrapper expected_min ({"This", "This", "This", "operated", "on", "on", "on", "on", "on"},
+                                                     {     1,      1,    1,            1,    1,    1,    1,    1,    1});
+    cudf::test::strings_column_wrapper expected_max ({"This", "test", "test", "test", "test", "test", "string", "string", "string"},
+                                                     {     1,      1,      1,      1,     1,       1,        1,        1,       1});
+    fixed_width_column_wrapper<size_type> expected_count ({1, 2, 2, 2, 3, 4, 3, 3, 2}, {1, 1, 1, 1, 1, 1, 1, 1, 1});
+
+    auto got_min  = cudf::experimental::rolling_window(input, window[0], window[0], 1, cudf::experimental::make_min_aggregation());
+    auto got_max  = cudf::experimental::rolling_window(input, window[0], window[0], 1, cudf::experimental::make_max_aggregation());
+    auto got_count  = cudf::experimental::rolling_window(input, window[0], window[0], 1, cudf::experimental::make_count_aggregation());
    
-    cudf::test::print(got->view()); 
-    cudf::test::expect_columns_equal(expected, got->view());
+    cudf::test::expect_columns_equal(expected_min, got_min->view());
+    cudf::test::expect_columns_equal(expected_max, got_max->view());
+    cudf::test::expect_columns_equal(expected_count, got_count->view());
+}
+
+TEST_F (RollingStringTest, MinPeriods) {
+    cudf::test::strings_column_wrapper input ({"This", "is", "rolling", "test", "being", "operated", "on", "string", "column"},
+                                              {     1,    0,         0,     1,        0,          1,    1,        1,       0});
+    std::vector<size_type> window{2};
+    cudf::test::strings_column_wrapper expected_min ({"This", "This", "This", "operated", "on", "on", "on", "on", "on"},
+                                                     {     0,      0,    0,            0,    1,    1,    1,    1,    0});
+    cudf::test::strings_column_wrapper expected_max ({"This", "test", "test", "test", "test", "test", "string", "string", "string"},
+                                                     {     0,      0,      0,      0,     1,       1,        1,        1,       0});
+    fixed_width_column_wrapper<size_type> expected_count ({0, 2, 2, 2, 3, 4, 3, 3, 2}, {0, 0, 0, 0, 1, 1, 1, 1, 0});
+
+    auto got_min  = cudf::experimental::rolling_window(input, window[0], window[0], 3, cudf::experimental::make_min_aggregation());
+    auto got_max  = cudf::experimental::rolling_window(input, window[0], window[0], 3, cudf::experimental::make_max_aggregation());
+    auto got_count  = cudf::experimental::rolling_window(input, window[0], window[0], 3, cudf::experimental::make_count_aggregation());
+
+    cudf::test::expect_columns_equal(expected_min, got_min->view());
+    cudf::test::expect_columns_equal(expected_max, got_max->view());
+    cudf::test::expect_columns_equal(expected_count, got_count->view());
 }
 
 template <typename T>
