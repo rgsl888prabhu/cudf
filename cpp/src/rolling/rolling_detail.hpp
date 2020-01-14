@@ -38,13 +38,16 @@ namespace detail
 
     constexpr bool timestamp_mean =
       is_mean &&
-      std::is_same<AggOp, DeviceSum>::value &&
       cudf::is_timestamp<ColumnType>();
 
+    constexpr bool timestamp_sum = 
+        std::is_same<AggOp, DeviceSum>::value &&
+        cudf::is_timestamp<ColumnType>();
+
     return !std::is_same<ColumnType, cudf::string_view>::value &&
+           !timestamp_mean && !timestamp_sum &&
             (cudf::is_numeric<ColumnType>() ||
-            comparable_countable_op ||
-            timestamp_mean);
+            comparable_countable_op);
   }
 
   template <typename ColumnType, cudf::experimental::aggregation::Kind Op>
@@ -65,6 +68,8 @@ namespace detail
       out = val;  
     }
   };
+
+  // Specialization for Count
 
   // Specialization for MEAN
   template <typename _T>
