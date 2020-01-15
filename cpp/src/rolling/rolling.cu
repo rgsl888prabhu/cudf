@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, NVIDIA CORPORATION.
+ * Copyright (c) 2019-2020, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,17 +40,22 @@ namespace experimental {
 
 namespace detail {
 
+namespace { // anonymous
+
 /**
- * @brief Computes the rolling window function
+ * @brief Computes the rolling window function for non sting_view
  *
- * @tparam ColumnType  Datatype of values pointed to by the pointers
+ * @tparam InputType  Datatype of values pointed to by the pointers
+ * @tparam OutputType Datatype of values expected at the end
  * @tparam agg_op  A functor that defines the aggregation operation
- * @tparam is_mean Compute mean=sum/count across all valid elements in the window
+ * @tparam op The aggreagtion expected to be carried out
  * @tparam block_size CUDA block size for the kernel
- * @tparam has_nulls true if the input column has nulls
+ * @tparam is_count_op true if op == aggregation::COUNT, else false
+ * @tparam source_has_nulls true if the input column has nulls
  * @tparam WindowIterator iterator type (inferred)
  * @param input Input column device view
  * @param output Output column device view
+ *
  * @param preceding_window_begin[in] Rolling window size iterator, accumulates from
  *                in_col[i-preceding_window] to in_col[i] inclusive
  * @param following_window_begin[in] Rolling window size iterator in the forward
@@ -58,172 +63,198 @@ namespace detail {
  *                in_col[i+following_window] inclusive
  * @param min_periods[in]  Minimum number of observations in window required to
  *                have a value, otherwise 0 is stored in the valid bit mask
+ * @param identity Identity value with InputType
  */
-namespace { // anonymous
+ template <typename InputType, typename OutputType, typename agg_op, aggregation::Kind op, int block_size, bool is_count_op, bool source_has_nulls,
+           typename WindowIterator, std::enable_if_t<!std::is_same<InputType, cudf::string_view>::value>* = nullptr>
+ __launch_bounds__(block_size)
+ __global__
+ void gpu_rolling(column_device_view input,
+         mutable_column_device_view output,
+         size_type * __restrict__ output_valid_count,
+         WindowIterator preceding_window_begin,
+         WindowIterator following_window_begin,
+         size_type min_periods,
+         InputType identity)
+ {
+     size_type i = blockIdx.x * block_size + threadIdx.x;
+     size_type stride = block_size * gridDim.x;
 
-    template <typename InputType, typename OutputType, typename agg_op, aggregation::Kind op, int block_size, bool is_count_op, bool source_has_nulls,
-             typename WindowIterator, std::enable_if_t<!std::is_same<InputType, cudf::string_view>::value>* = nullptr>
-    __launch_bounds__(block_size)
-    __global__
-    void gpu_rolling(column_device_view input,
-            mutable_column_device_view output,
-            size_type * __restrict__ output_valid_count,
-            WindowIterator preceding_window_begin,
-            WindowIterator following_window_begin,
-            size_type min_periods,
-            InputType identity)
+     size_type warp_valid_count{0};
+
+     auto active_threads = __ballot_sync(0xffffffff, i < input.size());
+     while(i < input.size())
+     {
+         OutputType val = agg_op::template identity<OutputType>();
+         // declare this as volatile to avoid some compiler optimizations that lead to incorrect results
+         // for CUDA 10.0 and below (fixed in CUDA 10.1)
+         volatile cudf::size_type count = 0;
+
+         size_type preceding_window = preceding_window_begin[i];
+         size_type following_window = following_window_begin[i];
+
+         // compute bounds
+         size_type start_index = max(0, i - preceding_window);
+         size_type end_index = min(input.size(), i + following_window + 1); // exclusive
+
+         // aggregate
+         // TODO: We should explore using shared memory to avoid redundant loads.
+         //       This might require separating the kernel into a special version
+         //       for dynamic and static sizes.
+         for (size_type j = start_index; j < end_index; j++) {
+             if (!source_has_nulls || input.is_valid(j)) {
+                 // Element type and output type are different for COUNT
+                 OutputType element = (op == aggregation::COUNT) ? InputType{0} : input.element<InputType>(j);
+                 val = agg_op{}(element, val);
+                 count++;
+             }
+         }
+
+         // check if we have enough input samples
+         bool output_is_valid = (count >= min_periods);
+
+         // set the mask
+         cudf::bitmask_type result_mask{__ballot_sync(active_threads, output_is_valid)};
+
+         // only one thread writes the mask
+         if (0 == threadIdx.x % cudf::experimental::detail::warp_size) {
+             output.set_mask_word(cudf::word_index(i), result_mask);
+             warp_valid_count += __popc(result_mask);
+         }
+
+         // store the output value, one per thread
+         if (output_is_valid)
+             cudf::detail::store_output_functor<OutputType, op == aggregation::MEAN>{}(output.element<OutputType>(i),
+                     val, count);
+
+         // process next element 
+         i += stride;
+         active_threads = __ballot_sync(active_threads, i < input.size());
+     }
+
+     // sum the valid counts across the whole block  
+     size_type block_valid_count = 
+         cudf::experimental::detail::single_lane_block_sum_reduce<block_size, 0>(warp_valid_count);
+
+     if(threadIdx.x == 0) {
+         atomicAdd(output_valid_count, block_valid_count);
+     }
+ }
+
+/**
+ * @brief Computes the rolling window function for string_view
+ *
+ * For Min and Max, this generates gather_map rather than actual
+ * output
+ *
+ * @tparam InputType  Datatype of values pointed to by the pointers
+ * @tparam OutputType Datatype of values expected at the end
+ * @tparam agg_op  A functor that defines the aggregation operation
+ * @tparam op The aggreagtion expected to be carried out
+ * @tparam block_size CUDA block size for the kernel
+ * @tparam is_count_op true if op == aggregation::COUNT, else false
+ * @tparam source_has_nulls true if the input column has nulls
+ * @tparam WindowIterator iterator type (inferred)
+ * @param input Input column device view
+ * @param output Output column device view
+ *
+ * @param preceding_window_begin[in] Rolling window size iterator, accumulates from
+ *                in_col[i-preceding_window] to in_col[i] inclusive
+ * @param following_window_begin[in] Rolling window size iterator in the forward
+ *                direction, accumulates from in_col[i] to
+ *                in_col[i+following_window] inclusive
+ * @param min_periods[in]  Minimum number of observations in window required to
+ *                have a value, otherwise 0 is stored in the valid bit mask
+ * @param identity Identity value with InputType
+ */
+template <typename InputType, typename OutputType, typename agg_op, aggregation::Kind op, int block_size, bool is_count_op, bool source_has_nulls,
+          typename WindowIterator, std::enable_if_t<std::is_same<InputType, cudf::string_view>::value>* = nullptr>
+__launch_bounds__(block_size)
+__global__
+void gpu_rolling(column_device_view input,
+        mutable_column_device_view output,
+        size_type * __restrict__ output_valid_count,
+        WindowIterator preceding_window_begin,
+        WindowIterator following_window_begin,
+        size_type min_periods,
+        InputType identity)
+{
+    size_type i = blockIdx.x * block_size + threadIdx.x;
+    size_type stride = block_size * gridDim.x;
+
+    size_type warp_valid_count{0};
+
+    auto active_threads = __ballot_sync(0xffffffff, i < input.size());
+    while(i < input.size())
     {
-        //printf("RGSL : Coming to gpu_rolling Normal\n");
-        size_type i = blockIdx.x * block_size + threadIdx.x;
-        size_type stride = block_size * gridDim.x;
+        InputType val = identity;
+        OutputType val_index = (op == aggregation::ARGMIN)? ARGMIN_SENTINEL : ARGMAX_SENTINEL;
+        // declare this as volatile to avoid some compiler optimizations that lead to incorrect results
+        // for CUDA 10.0 and below (fixed in CUDA 10.1)
+        volatile cudf::size_type count = 0;
 
-        size_type warp_valid_count{0};
+        size_type preceding_window = preceding_window_begin[i];
+        size_type following_window = following_window_begin[i];
 
-        auto active_threads = __ballot_sync(0xffffffff, i < input.size());
-        while(i < input.size())
-        {
-            OutputType val = agg_op::template identity<OutputType>();
-            // declare this as volatile to avoid some compiler optimizations that lead to incorrect results
-            // for CUDA 10.0 and below (fixed in CUDA 10.1)
-            volatile cudf::size_type count = 0;
+        // compute bounds
+        size_type start_index = max(0, i - preceding_window);
+        size_type end_index = min(input.size(), i + following_window + 1); // exclusive
 
-            size_type preceding_window = preceding_window_begin[i];
-            size_type following_window = following_window_begin[i];
-
-            // compute bounds
-            size_type start_index = max(0, i - preceding_window);
-            size_type end_index = min(input.size(), i + following_window + 1); // exclusive
-
-            // aggregate
-            // TODO: We should explore using shared memory to avoid redundant loads.
-            //       This might require separating the kernel into a special version
-            //       for dynamic and static sizes.
-            for (size_type j = start_index; j < end_index; j++) {
-                if (!source_has_nulls || input.is_valid(j)) {
+        // aggregate
+        // TODO: We should explore using shared memory to avoid redundant loads.
+        //       This might require separating the kernel into a special version
+        //       for dynamic and static sizes.
+        for (size_type j = start_index; j < end_index; j++) {
+            if (!source_has_nulls || input.is_valid(j)) {
+                if (is_count_op) {
+                    count++;
+                } else {
                     // Element type and output type are different for COUNT
-                    OutputType element = (op == aggregation::COUNT) ? InputType{0} : input.element<InputType>(j);
+                    InputType element = input.element<InputType>(j);
                     val = agg_op{}(element, val);
+                    if (val == element) {
+                        val_index = j;
+                    }
                     count++;
                 }
             }
-
-            // check if we have enough input samples
-            bool output_is_valid = (count >= min_periods);
-
-            // set the mask
-            cudf::bitmask_type result_mask{__ballot_sync(active_threads, output_is_valid)};
-
-            // only one thread writes the mask
-            if (0 == threadIdx.x % cudf::experimental::detail::warp_size) {
-                output.set_mask_word(cudf::word_index(i), result_mask);
-                warp_valid_count += __popc(result_mask);
-            }
-
-            // store the output value, one per thread
-            if (output_is_valid)
-                cudf::detail::store_output_functor<OutputType, op == aggregation::MEAN>{}(output.element<OutputType>(i),
-                        val, count);
-
-            // process next element 
-            i += stride;
-            active_threads = __ballot_sync(active_threads, i < input.size());
         }
 
-        // sum the valid counts across the whole block  
-        size_type block_valid_count = 
-            cudf::experimental::detail::single_lane_block_sum_reduce<block_size, 0>(warp_valid_count);
+        // check if we have enough input samples
+        bool output_is_valid = (count >= min_periods);
 
-        if(threadIdx.x == 0) {
-            atomicAdd(output_valid_count, block_valid_count);
+        // set the mask
+        // We can't have gather map being created for Min and Max for string_view to be null
+        cudf::bitmask_type result_mask{__ballot_sync(active_threads, (is_count_op)? output_is_valid: true)};
+
+        // only one thread writes the mask
+        if (0 == threadIdx.x % cudf::experimental::detail::warp_size) {
+            output.set_mask_word(cudf::word_index(i), result_mask);
+            warp_valid_count += __popc(result_mask);
         }
+
+        // store the output value, one per thread
+        if (output_is_valid) {
+            output.element<OutputType>(i) = (is_count_op)? count: val_index;
+        } else {
+            // This will help identify null elements while gathering for Min and Max
+            // In case of count, this would be null, so doesn't matter.
+            output.element<OutputType>(i) = -1;
+        }
+
+        // process next element 
+        i += stride;
+        active_threads = __ballot_sync(active_threads, i < input.size());
     }
 
-    template <typename InputType, typename OutputType, typename agg_op, aggregation::Kind op, int block_size, bool is_count_op, bool source_has_nulls,
-             typename WindowIterator, std::enable_if_t<std::is_same<InputType, cudf::string_view>::value>* = nullptr>
-    __launch_bounds__(block_size)
-    __global__
-    void gpu_rolling(column_device_view input,
-            mutable_column_device_view output,
-            size_type * __restrict__ output_valid_count,
-            WindowIterator preceding_window_begin,
-            WindowIterator following_window_begin,
-            size_type min_periods,
-            InputType identity)
-    {
-        //printf ("RGSL : Coming to Arg Max/Min \n");
-        size_type i = blockIdx.x * block_size + threadIdx.x;
-        size_type stride = block_size * gridDim.x;
+    // sum the valid counts across the whole block  
+    size_type block_valid_count = 
+        cudf::experimental::detail::single_lane_block_sum_reduce<block_size, 0>(warp_valid_count);
 
-        size_type warp_valid_count{0};
-
-        auto active_threads = __ballot_sync(0xffffffff, i < input.size());
-        while(i < input.size())
-        {
-            InputType val = identity;
-            OutputType val_index = (op == aggregation::ARGMIN)? ARGMIN_SENTINEL : ARGMAX_SENTINEL;
-            // declare this as volatile to avoid some compiler optimizations that lead to incorrect results
-            // for CUDA 10.0 and below (fixed in CUDA 10.1)
-            volatile cudf::size_type count = 0;
-
-            size_type preceding_window = preceding_window_begin[i];
-            size_type following_window = following_window_begin[i];
-
-            // compute bounds
-            size_type start_index = max(0, i - preceding_window);
-            size_type end_index = min(input.size(), i + following_window + 1); // exclusive
-
-            // aggregate
-            // TODO: We should explore using shared memory to avoid redundant loads.
-            //       This might require separating the kernel into a special version
-            //       for dynamic and static sizes.
-            for (size_type j = start_index; j < end_index; j++) {
-                if (!source_has_nulls || input.is_valid(j)) {
-                    if (is_count_op) {
-                        count++;
-                    } else {
-                        // Element type and output type are different for COUNT
-                        InputType element = input.element<InputType>(j);
-                        val = agg_op{}(element, val);
-                        if (val == element) {
-                            val_index = j;
-                        }
-                        count++;
-                    }
-                }
-            }
-
-            // check if we have enough input samples
-            bool output_is_valid = (count >= min_periods);
-
-            // set the mask
-            cudf::bitmask_type result_mask{__ballot_sync(active_threads, (is_count_op)? output_is_valid: true)};
-
-            // only one thread writes the mask
-            if (0 == threadIdx.x % cudf::experimental::detail::warp_size) {
-                output.set_mask_word(cudf::word_index(i), result_mask);
-                warp_valid_count += __popc(result_mask);
-            }
-
-            // store the output value, one per thread
-            if (output_is_valid) {
-                output.element<OutputType>(i) = (is_count_op)? count: val_index;
-            } else {
-                output.element<OutputType>(i) = -1;
-            }
-
-            // process next element 
-            i += stride;
-            active_threads = __ballot_sync(active_threads, i < input.size());
-        }
-
-        // sum the valid counts across the whole block  
-        size_type block_valid_count = 
-            cudf::experimental::detail::single_lane_block_sum_reduce<block_size, 0>(warp_valid_count);
-
-        if(threadIdx.x == 0) {
-            atomicAdd(output_valid_count, block_valid_count);
-        }
+    if(threadIdx.x == 0) {
+        atomicAdd(output_valid_count, block_valid_count);
     }
+}
 
 struct rolling_window_launcher
 {
@@ -235,10 +266,6 @@ struct rolling_window_launcher
                  size_type min_periods,
                  cudaStream_t stream) 
         {
-        if ((op == aggregation::ARGMIN) or (op == aggregation::ARGMAX))
-        {
-            std::cout <<"RGSL : Argmax and ArgMin"<<std::endl;
-        }
         constexpr cudf::size_type block_size = 256;
         cudf::experimental::detail::grid_1d grid(input.size(), block_size);
 
@@ -258,7 +285,7 @@ struct rolling_window_launcher
                      preceding_window_begin, following_window_begin, min_periods, agg_op::template identity<InputType>());
         }
 
-        //output.set_null_count(output.size() - device_valid_count.value(stream));
+        output.set_null_count(output.size() - device_valid_count.value(stream));
     }
 
   template<typename T, typename agg_op, aggregation::Kind op, typename WindowIterator,
@@ -271,7 +298,6 @@ struct rolling_window_launcher
                                                     rmm::mr::device_memory_resource *mr,
                                                     cudaStream_t stream)
   {
-    std::cout <<"dispatch_aggregation_type common"<<std::endl;
     if (input.is_empty()) return empty_like(input);
 
     cudf::nvtx::range_push("CUDF_ROLLING_WINDOW", cudf::nvtx::color::ORANGE);
@@ -300,7 +326,6 @@ struct rolling_window_launcher
                                                     rmm::mr::device_memory_resource *mr,
                                                     cudaStream_t stream)
   {
-    std::cout <<"string type"<<std::endl;
     auto output = make_numeric_column(cudf::data_type{cudf::experimental::type_to_id<size_type>()},
             input.size(), cudf::UNINITIALIZED, stream, mr);
 
@@ -323,6 +348,8 @@ struct rolling_window_launcher
 
     // If aggregation operation is MIN or MAX, then the output we got is a scatter map
     if((op == aggregation::MIN) or (op == aggregation::MAX)) {
+        // The rows that represent null elements will be having negative values in gather map,
+        // and that's why nullify_out_of_bounds/ignore_out_of_bounds is true.
         auto output_table = detail::gather(table_view{{input}}, output->view(), false, true, false, mr, stream);
         return std::make_unique<cudf::column>(std::move(output_table->get_column(0)));;
     }
