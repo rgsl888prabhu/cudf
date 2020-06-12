@@ -19,6 +19,7 @@ from cudf._lib.cpp.column.column_view cimport column_view
 from cudf._lib.cpp.stream_compaction cimport (
     duplicate_keep_option,
     drop_nulls as cpp_drop_nulls,
+    drop_nans as cpp_drop_nans,
     apply_boolean_mask as cpp_apply_boolean_mask,
     drop_duplicates as cpp_drop_duplicates,
     unique_count as cpp_unique_count
@@ -70,6 +71,66 @@ def drop_nulls(Table source_table, how="any", keys=None, thresh=None):
     with nogil:
         c_result = move(
             cpp_drop_nulls(
+                source_table_view,
+                cpp_keys,
+                c_keep_threshold
+            )
+        )
+
+    return Table.from_unique_ptr(
+        move(c_result),
+        column_names=source_table._column_names,
+        index_names=(
+            None if source_table._index is None
+            else source_table._index_names)
+    )
+
+
+def drop_nans(Table source_table, how="any", keys=None, thresh=None):
+    """
+    Drops NAN rows from cols depending on key columns.
+    Key columns should of floating point type.
+
+    Parameters
+    ----------
+    source_table : source table whose NAN rows are dropped to form new table
+    how  : "any" or "all". If thresh is None, drops rows of cols that have any
+           NANs or all NANs (respectively) in subset (default: "any")
+    keys : List of Column names. If set, then these columns are checked for
+           NANS rather than all of cols (optional)
+    thresh : Minimum number of non-NANs required to keep a row (optional)
+
+    Returns
+    -------
+    Table with NAN rows dropped
+    """
+    num_index_columns = (
+        0 if source_table._index is None else
+        source_table._index._num_columns)
+    # shifting the index number by number of index columns
+    cdef vector[size_type] cpp_keys = (
+        [
+            num_index_columns + source_table._column_names.index(name)
+            for name in keys
+        ]
+        if keys is not None
+        else range(
+            num_index_columns, num_index_columns + source_table._num_columns
+        )
+    )
+
+    cdef size_type c_keep_threshold = cpp_keys.size()
+    if thresh is not None:
+        c_keep_threshold = thresh
+    elif how == "all":
+        c_keep_threshold = 1
+
+    cdef unique_ptr[table] c_result
+    cdef table_view source_table_view = source_table.view()
+
+    with nogil:
+        c_result = move(
+            cpp_drop_nans(
                 source_table_view,
                 cpp_keys,
                 c_keep_threshold

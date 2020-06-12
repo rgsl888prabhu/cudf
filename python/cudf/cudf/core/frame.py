@@ -925,6 +925,48 @@ class Frame(libcudf.table.Table):
         else:
             return self._drop_na_columns(how=how, subset=subset, thresh=thresh)
 
+    def _drop_nans(self, how="any", subset=None, thresh=None):
+        """
+        Drops NAN rows from `self`.
+        subset columns should  be floating point type.
+
+        how : {"any", "all"}, optional
+            Specifies how to decide whether to drop a row.
+            any (default) drops rows containing at least
+            one NAN value. all drops only rows containing
+            *all* NAN values.
+        subset : list, optional
+            List of columns to consider when dropping rows.
+        thresh: int, optional
+            If specified, then drops every row containing
+            less than `thresh` non-NAN values.
+        """
+        if subset is None:
+            subset = self._column_names
+        elif (
+            not np.iterable(subset)
+            or isinstance(subset, str)
+            or isinstance(subset, tuple)
+            and subset in self._data.names
+        ):
+            subset = (subset,)
+        diff = set(subset) - set(self._data)
+        if len(diff) != 0:
+            raise KeyError("columns {!r} do not exist".format(diff))
+        subset_cols = [
+            name for name, col in self._data.items() if name in subset
+        ]
+        if len(subset_cols) == 0:
+            return self.copy(deep=True)
+        #print ("RGSL : Calling NAN \n")
+        result = self.__class__._from_table(
+            libcudf.stream_compaction.drop_nans(
+                self, how=how, keys=subset, thresh=thresh
+            )
+        )
+        result._copy_categories(self)
+        return result
+
     def _drop_na_rows(self, how="any", subset=None, thresh=None):
         """
         Drops null rows from `self`.

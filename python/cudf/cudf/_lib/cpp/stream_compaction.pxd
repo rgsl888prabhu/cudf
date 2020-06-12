@@ -25,6 +25,10 @@ cdef extern from "cudf/stream_compaction.hpp" namespace "cudf" \
                                       vector[size_type] keys,
                                       size_type keep_threshold) except +
 
+    cdef unique_ptr[table] drop_nans(table_view source_table,
+                                      vector[size_type] keys,
+                                      size_type keep_threshold) except +
+
     cdef unique_ptr[table] apply_boolean_mask(
         table_view source_table,
         column_view boolean_mask

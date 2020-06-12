@@ -1562,6 +1562,12 @@ class Series(Frame, Serializable):
         """
         return super().dropna(subset=[self.name])
 
+    def _drop_nans(self):
+        """
+        Return a Series with NAN values removed.
+        """
+        return super()._drop_nans(subset=[self.name])
+
     def drop_duplicates(self, keep="first", inplace=False, ignore_index=False):
         """
         Return Series with duplicate values removed
@@ -2393,9 +2399,10 @@ class Series(Frame, Serializable):
         skipna = True if skipna is None else skipna
 
         if skipna:
-            result_series = self.nans_to_nulls()
-            if result_series.has_nulls:
-                result_series = result_series.dropna()
+            if np.issubdtype(self.dtype, np.float):
+                result_series = self._drop_nans()
+            else:
+                result_series = self
         else:
             if self.has_nulls:
                 return np.nan
@@ -2455,9 +2462,10 @@ class Series(Frame, Serializable):
         skipna = True if skipna is None else skipna
 
         if skipna:
-            result_series = self.nans_to_nulls()
-            if result_series.has_nulls:
-                result_series = result_series.dropna()
+            if np.issubdtype(self.dtype, np.float):
+                result_series = self._drop_nans()
+            else:
+                result_series = self
         else:
             if self.has_nulls:
                 return np.nan
@@ -2526,9 +2534,10 @@ class Series(Frame, Serializable):
         skipna = True if skipna is None else skipna
 
         if skipna:
-            result_series = self.nans_to_nulls()
-            if result_series.has_nulls:
-                result_series = result_series.dropna()
+            if np.issubdtype(self.dtype, np.float):
+                result_series = self._drop_nans()
+            else:
+                result_series = self
         else:
             if self.has_nulls:
                 return np.nan
@@ -2605,9 +2614,10 @@ class Series(Frame, Serializable):
         skipna = True if skipna is None else skipna
 
         if skipna:
-            result_series = self.nans_to_nulls()
-            if result_series.has_nulls:
-                result_series = result_series.dropna()
+            if np.issubdtype(self.dtype, np.float):
+                result_series = self._drop_nans()
+            else:
+                result_series = self
         else:
             if self.has_nulls:
                 return np.nan
@@ -2950,9 +2960,10 @@ class Series(Frame, Serializable):
         skipna = True if skipna is None else skipna
 
         if skipna:
-            result_series = self.nans_to_nulls()
-            if result_series.has_nulls:
-                result_series = result_series.dropna()
+            if np.issubdtype(self.dtype, np.float):
+                result_series = self._drop_nans()
+            else:
+                result_series = self
         else:
             if self.has_nulls:
                 return np.nan
@@ -3011,9 +3022,10 @@ class Series(Frame, Serializable):
         skipna = True if skipna is None else skipna
 
         if skipna:
-            result_series = self.nans_to_nulls()
-            if result_series.has_nulls:
-                result_series = result_series.dropna()
+            if np.issubdtype(self.dtype, np.float):
+                result_series = self._drop_nans()
+            else:
+                result_series = self
         else:
             if self.has_nulls:
                 return np.nan
@@ -3072,9 +3084,10 @@ class Series(Frame, Serializable):
         skipna = True if skipna is None else skipna
 
         if skipna:
-            result_series = self.nans_to_nulls()
-            if result_series.has_nulls:
-                result_series = result_series.dropna()
+            if np.issubdtype(self.dtype, np.float):
+                result_series = self._drop_nans()
+            else:
+                result_series = self
         else:
             if self.has_nulls:
                 return np.nan
