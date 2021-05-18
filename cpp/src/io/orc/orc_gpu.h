@@ -91,6 +91,8 @@ struct ColumnDesc {
   void *column_data_base;                  // base pointer of column data
   uint32_t start_row;                      // starting row of the stripe
   uint32_t num_rows;                       // starting row of the stripe
+  size_t child_num_rows = 0;               // number of rows in child column
+  size_t max_num_rows   = 0;               // maximum number of rows of expected from whole columns
   uint32_t dictionary_start;               // start position in global dictionary
   uint32_t dict_len;                       // length of local dictionary
   uint32_t null_count;                     // number of null values in this stripe's column

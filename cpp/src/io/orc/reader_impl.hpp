@@ -129,7 +129,7 @@ class reader::impl {
   std::unique_ptr<datasource> _source;
   std::unique_ptr<cudf::io::orc::metadata> _metadata;
 
-  std::vector<int> _selected_columns;
+  std::vector<std::vector<int>> _selected_columns;
   bool _use_index            = true;
   bool _use_np_dtypes        = true;
   bool _has_timestamp_column = false;

@@ -531,6 +531,61 @@ std::vector<metadata::OrcStripeInfo> metadata::select_stripes(const std::vector<
   return selection;
 }
 
+int add_column(std::vector<std::vector<int>> &selection,
+               std::vector<SchemaType> &types,
+               int level,
+               int id,
+               bool &has_timestamp_column)
+{
+  if (level <= selection.size()) { selection.emplace_back(std::vector<int>{}) };
+  selection[level].emplace_back(id);
+  if (ff.types[index].kind == orc::TIMESTAMP) { has_timestamp_column = true; }
+
+  switch (types[id].kind) {
+    case orc::LIST:
+      if (not ff.types[id].subtypes.empty()) {
+        return 1 + add_column_child(selection, types, level + 1, id + 1);
+      } else {
+        return 1;
+      }
+      break;
+
+    case orc::STRUCT:
+      int num_cols_added = 1;
+      for (int i = 1; i <= ff.types[id].subtypes.size(); i++) {
+        num_cols_added += add_column_child(selection, types, level, id + i);
+      }
+      return num_cols_added break;
+
+    default: return 1;
+  }
+}
+
+std::vector<std::vector<int>> metadata::select_columns(std::vector<std::string> use_names,
+                                                       bool &has_timestamp_column)
+{
+  std::vector<std::vector<int>> selection;
+
+  if (not use_names.empty()) {
+    int index = 0;
+    for (const auto &use_name : use_names) {
+      bool name_found = false;
+      for (int i = 0; i < get_num_columns(); ++i, ++index) {
+        if (get_column_name(index) == use_name) {
+          name_found = true;
+          index += add_column(selection, ff.types, 0, index, has_timestamp_column);
+          break;
+        }
+      }
+    }
+  } else {
+    for (int i = 1; i < get_num_columns();) {
+      i += add_column(selection, ff.types, 0, i, has_timestamp_column);
+    }
+  }
+}
+
+#if 0
 std::vector<int> metadata::select_columns(std::vector<std::string> use_names,
                                           bool &has_timestamp_column)
 {
@@ -564,6 +619,7 @@ std::vector<int> metadata::select_columns(std::vector<std::string> use_names,
 
   return selection;
 }
+#endif
 
 void metadata::init_column_names()
 {
