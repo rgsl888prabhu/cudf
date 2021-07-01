@@ -702,6 +702,7 @@ void reader::impl::decode_stream_data(hostdevice_vector<gpu::ColumnDesc> &chunks
   rmm::device_uvector<gpu::DictionaryEntry> global_dict(num_dicts, stream);
 
   chunks.host_to_device(stream);
+  // row_groups.host_to_device(stream);
   gpu::DecodeNullsAndStringDictionaries(
     chunks.device_ptr(), global_dict.data(), num_columns, num_stripes, skip_rows, stream);
   gpu::DecodeOrcColumnData(chunks.device_ptr(),
@@ -771,16 +772,17 @@ void reader::impl::aggregate_child_meta(hostdevice_vector<gpu::ColumnDesc> &chun
             row_groups[(processed_row_groups * num_parent_cols) + parent_col_idx].num_child_rows;
           for (uint32_t id = 0; id < p_col.num_children; id++) {
             const auto child_col_idx = index + id;
-            printf(
-              "RGSL : row group child size at rowgroup id %lu is %u \n", rowgroup_id, child_rows);
+            if (level == 1)
+              printf(
+                "RGSL : row group child size at rowgroup id %lu is %u \n", rowgroup_id, child_rows);
             rwgrp_meta[(processed_row_groups * num_child_cols) + child_col_idx]
               .start_row_per_row_group = processed_child_rows;
-            processed_child_rows += child_rows;
             rwgrp_meta[(processed_row_groups * num_child_cols) + child_col_idx]
               .num_child_rows_per_row_group = child_rows;
           }
+          processed_child_rows += child_rows;
         }
-        printf("RGSL : number of child rows %u\n", child_rows);
+        if (level == 1) printf("RGSL : number of child rows %u\n", child_rows);
       }
 
       for (uint32_t id = 0; id < p_col.num_children; id++) {
@@ -1079,6 +1081,9 @@ table_with_metadata reader::impl::read(size_type skip_rows,
               (level == 0)
                 ? stripe_info->numberOfRows
                 : _col_meta.num_child_rows_per_stripe[stripe_idx * num_columns + col_idx];
+            if (level == 2)
+              printf("RGSL : number of child rows in stripe is %u \n",
+                     _col_meta.num_child_rows_per_stripe[stripe_idx * num_columns + col_idx]);
             chunk.base_parent_num_rows = stripe_info->numberOfRows;
             chunk.column_num_rows = (level == 0) ? num_rows : _col_meta.num_child_rows[col_idx];
             chunk.encoding_kind   = stripe_footer->columns[selected_columns[col_idx].id].kind;
@@ -1125,12 +1130,14 @@ table_with_metadata reader::impl::read(size_type skip_rows,
                          rw_grp_meta.end(),
                          row_groups_span.begin(),
                          rw_grp_meta.begin(),
-                         [](auto meta, auto &row_grp) {
+                         [&](auto meta, auto &row_grp) {
                            row_grp.num_rows  = meta.num_child_rows_per_row_group;
                            row_grp.start_row = meta.start_row_per_row_group;
-                           printf("RGSL: row_grp.num_rows is %u and row_grp.start_row is %u \n",
-                                  row_grp.num_rows,
-                                  row_grp.start_row);
+                           if (level == 2) {
+                             printf("RGSL: row_grp.num_rows is %u and row_grp.start_row is %u \n",
+                                    row_grp.num_rows,
+                                    row_grp.start_row);
+                           }
                            return meta;
                          });
         }

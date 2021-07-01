@@ -455,7 +455,9 @@ extern "C" __global__ void __launch_bounds__(128, 8)
         ((uint32_t *)&row_groups[(s->rowgroup_start + i) * num_columns + blockIdx.x])[j] =
           ((volatile uint32_t *)&s->rowgroups[i])[j];
       }
-      printf("RGSL : num_rows is %u and start_row is %u \n", num_rows, start_row);
+      if (level == 2) {
+        printf("RGSL : num_rows is %u and start_row is %u \n", num_rows, start_row);
+      }
       row_groups[(s->rowgroup_start + i) * num_columns + blockIdx.x].num_rows  = num_rows;
       row_groups[(s->rowgroup_start + i) * num_columns + blockIdx.x].start_row = start_row;
     }

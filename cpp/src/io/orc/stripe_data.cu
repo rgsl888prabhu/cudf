@@ -1405,7 +1405,11 @@ __global__ void __launch_bounds__(block_size)
     // If we have an index, seek to the initial run and update row positions
     if (num_rowgroups > 0) {
       uint32_t ofs0 = min(s->top.data.index.strm_offset[0], s->chunk.strm_len[CI_DATA]);
-      if (level > 0) printf("RGSL : ofs0 is  %u\n", ofs0);
+      if (level > 0)
+        printf("RGSL :level  is %lu  ofs0 is  %u abd s->chunk.num_rows is %u\n",
+               level,
+               ofs0,
+               s->chunk.num_rows);
       uint32_t ofs1 = min(s->top.data.index.strm_offset[1], s->chunk.strm_len[CI_DATA2]);
       uint32_t rowgroup_rowofs =
         (level == 0) ? (blockIdx.y - min(s->chunk.rowgroup_id, blockIdx.y)) * rowidx_stride
@@ -1415,8 +1419,22 @@ __global__ void __launch_bounds__(block_size)
       s->chunk.streams[CI_DATA2] += ofs1;
       s->chunk.strm_len[CI_DATA2] -= ofs1;
       rowgroup_rowofs = min(rowgroup_rowofs, s->chunk.num_rows);
+      if (level == 2)
+        printf(
+          "Before update RGSL : s->top.data.index.start_row is %u s->chunk.start_row is %u "
+          "s->top.data.index.num_rows is %u\n",
+          s->top.data.index.start_row,
+          s->chunk.start_row,
+          s->top.data.index.num_rows);
       s->chunk.start_row += rowgroup_rowofs;
       s->chunk.num_rows -= rowgroup_rowofs;
+      if (level == 2)
+        printf(
+          "RGSL : s->top.data.index.start_row is %u s->chunk.start_row is %u "
+          "s->top.data.index.num_rows is %u\n",
+          s->top.data.index.start_row,
+          s->chunk.start_row,
+          s->top.data.index.num_rows);
     }
     s->is_string = (s->chunk.type_kind == STRING || s->chunk.type_kind == BINARY ||
                     s->chunk.type_kind == VARCHAR || s->chunk.type_kind == CHAR);
@@ -1437,6 +1455,11 @@ __global__ void __launch_bounds__(block_size)
 
     bytestream_init(&s->bs, s->chunk.streams[CI_DATA], s->chunk.strm_len[CI_DATA]);
     bytestream_init(&s->bs2, s->chunk.streams[CI_DATA2], s->chunk.strm_len[CI_DATA2]);
+    if (level == 2) {
+      printf("RGSL : s->chunk.start_row is %u and s->top.data.end_row %u \n",
+             s->top.data.cur_row,
+             s->top.data.end_row);
+    }
   }
   __syncthreads();
 
@@ -1690,6 +1713,10 @@ __global__ void __launch_bounds__(block_size)
             case LONG:
             case DECIMAL:
               static_cast<uint64_t *>(data_out)[row] = s->vals.u64[t + vals_skipped];
+
+              if (row < 5 and level == 2) {
+                printf("RGSL : value is %lu \n", s->vals.u64[t + vals_skipped]);
+              }
               break;
             case LIST: {
               // Since the offsets column in cudf is `size_type`,
