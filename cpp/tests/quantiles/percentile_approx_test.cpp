@@ -43,18 +43,30 @@ std::unique_ptr<cudf::column> arrow_percentile_approx(cudf::column_view const& _
   auto sorted_t      = cudf::sort(t, {}, {cudf::null_order::AFTER});
   auto sorted_values = sorted_t->get_column(0).view();
 
+#if defined(CUDF_USE_PER_THREAD_DEFAULT_STREAM)
+  CUDF_CUDA_TRY(cudaDeviceSynchronize());
+#endif
   std::vector<double> h_values(sorted_values.size());
   CUDF_CUDA_TRY(cudaMemcpy(h_values.data(),
                            sorted_values.data<double>(),
                            sizeof(double) * sorted_values.size(),
                            cudaMemcpyDefault));
+#if defined(CUDF_USE_PER_THREAD_DEFAULT_STREAM)
+  CUDF_CUDA_TRY(cudaDeviceSynchronize());
+#endif
   std::vector<char> h_validity(sorted_values.size());
   if (sorted_values.null_mask() != nullptr) {
     auto validity = cudf::mask_to_bools(sorted_values.null_mask(), 0, sorted_values.size());
+#if defined(CUDF_USE_PER_THREAD_DEFAULT_STREAM)
+    CUDF_CUDA_TRY(cudaDeviceSynchronize());
+#endif
     CUDF_CUDA_TRY(cudaMemcpy(h_validity.data(),
                              (validity->view().data<char>()),
                              sizeof(char) * sorted_values.size(),
                              cudaMemcpyDefault));
+#if defined(CUDF_USE_PER_THREAD_DEFAULT_STREAM)
+    CUDF_CUDA_TRY(cudaDeviceSynchronize());
+#endif
   }
 
   // generate the tdigest
@@ -249,10 +261,16 @@ void grouped_test(cudf::data_type input_type, std::vector<std::pair<int, int>> p
   auto i      = thrust::make_counting_iterator(0);
   auto h_keys = std::vector<int32_t>(values->size());
   std::transform(i, i + values->size(), h_keys.begin(), group_index{});
+#if defined(CUDF_USE_PER_THREAD_DEFAULT_STREAM)
+  CUDF_CUDA_TRY(cudaDeviceSynchronize());
+#endif
   CUDF_CUDA_TRY(cudaMemcpy(keys->mutable_view().data<int32_t>(),
                            h_keys.data(),
                            h_keys.size() * sizeof(int32_t),
                            cudaMemcpyDefault));
+#if defined(CUDF_USE_PER_THREAD_DEFAULT_STREAM)
+  CUDF_CUDA_TRY(cudaDeviceSynchronize());
+#endif
 
   std::for_each(params.begin(), params.end(), [&](std::pair<int, int> const& params) {
     percentile_approx_test(
@@ -294,10 +312,16 @@ void grouped_with_nulls_test(cudf::data_type input_type, std::vector<std::pair<i
   auto i      = thrust::make_counting_iterator(0);
   auto h_keys = std::vector<int32_t>(values->size());
   std::transform(i, i + values->size(), h_keys.begin(), group_index{});
+#if defined(CUDF_USE_PER_THREAD_DEFAULT_STREAM)
+  CUDF_CUDA_TRY(cudaDeviceSynchronize());
+#endif
   CUDF_CUDA_TRY(cudaMemcpy(keys->mutable_view().data<int32_t>(),
                            h_keys.data(),
                            h_keys.size() * sizeof(int32_t),
                            cudaMemcpyDefault));
+#if defined(CUDF_USE_PER_THREAD_DEFAULT_STREAM)
+  CUDF_CUDA_TRY(cudaDeviceSynchronize());
+#endif
 
   // add a null mask
   auto mask = make_null_mask(*values);

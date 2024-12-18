@@ -75,7 +75,7 @@ def test_series_construction_with_nulls(input_obj):
 )
 def test_serialize_struct_dtype(fields):
     dtype = cudf.StructDtype(fields)
-    recreated = dtype.__class__.deserialize(*dtype.serialize())
+    recreated = dtype.__class__.device_deserialize(*dtype.device_serialize())
     assert recreated == dtype
 
 

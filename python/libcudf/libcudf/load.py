@@ -23,7 +23,7 @@ def load_library():
     # other library is present use the one in the wheel.
     libcudf_lib = None
     try:
-        libcudf_lib = ctypes.CDLL("libcudf.so", ctypes.RTLD_GLOBAL)
+        libcudf_lib = ctypes.CDLL("libcudf.so", ctypes.RTLD_LOCAL)
     except OSError:
         # If neither of these directories contain the library, we assume we are in an
         # environment where the C++ library is already installed somewhere else and the
@@ -38,7 +38,7 @@ def load_library():
                     os.path.dirname(__file__), lib_dir, "libcudf.so"
                 )
             ):
-                libcudf_lib = ctypes.CDLL(lib, ctypes.RTLD_GLOBAL)
+                libcudf_lib = ctypes.CDLL(lib, ctypes.RTLD_LOCAL)
                 break
 
     # The caller almost never needs to do anything with this library, but no

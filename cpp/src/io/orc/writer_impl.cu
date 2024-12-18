@@ -504,7 +504,7 @@ size_t max_varint_size()
   return cudf::util::div_rounding_up_unsafe(sizeof(T) * 8, 7);
 }
 
-constexpr size_t RLE_stream_size(TypeKind kind, size_t count)
+size_t RLE_stream_size(TypeKind kind, size_t count)
 {
   using cudf::util::div_rounding_up_unsafe;
   constexpr auto byte_rle_max_len = 128;
@@ -525,7 +525,8 @@ constexpr size_t RLE_stream_size(TypeKind kind, size_t count)
     case TypeKind::DOUBLE:
       return div_rounding_up_unsafe(count, gpu::encode_block_size) *
              (gpu::encode_block_size * max_varint_size<int64_t>() + 2);
-    default: CUDF_FAIL("Unsupported ORC type for RLE stream size");
+    default:
+      CUDF_FAIL("Unsupported ORC type for RLE stream size: " + std::to_string(kind));
   }
 }
 
